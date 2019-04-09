@@ -1,0 +1,6 @@
+# Default behavior: LF
+* text eol=lf
+
+# Make an exception for Bitmap files - they are binary files
+*.bmp binary
+*.png binary
