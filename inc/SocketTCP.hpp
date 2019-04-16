@@ -1,6 +1,6 @@
 /**
-* \file SocketGBN.hpp
-* \details Linux/Windows SocketGBN Class - Declarations
+* \file SocketTCP.hpp
+* \details Linux/Windows SocketTCP Class - Declarations
 * \author Alex Brinister
 * \author Colin Rockwood
 * \author Mike Geoffroy
@@ -8,20 +8,20 @@
 * \date March 24, 2019
 */
 
-#ifndef __SocketGBN_HPP__
-#define __SocketGBN_HPP__
+#ifndef __SocketTCP_HPP__
+#define __SocketTCP_HPP__
 
 /* C++ Standard Template Library headers */
 #include <string>
 
-/* Linux SocketGBN libraries */
+/* Linux SocketTCP libraries */
 #include <netdb.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/select.h>
 
-/* Phase 2 SocketGBN library headers */
-#include "Packet.hpp"
+/* Phase 2 SocketTCP library headers */
+#include "Segment.hpp"
 
 /// Group namespace
 namespace socksahoy
@@ -32,38 +32,38 @@ namespace socksahoy
     * and Linux follows the POSIX standard for Sockes, which descends from
     * the BSD Socket specification.
     */
-    /// Alias for general BSD-like SocketGBN address structure
+    /// Alias for general BSD-like SocketTCP address structure
     typedef struct sockaddr SockAddr;
 
-    /// Alias for IPv4 BSD-like SocketGBN address structure
+    /// Alias for IPv4 BSD-like SocketTCP address structure
     typedef struct sockaddr_in SockAddrIpv4;
 
-    /// Alias for IPv6 BSD-like SocketGBN address structure
+    /// Alias for IPv6 BSD-like SocketTCP address structure
     typedef struct sockaddr_in6 SockAddrIpv6;
 
     /// Alias for BSD-like IP address info structure
     typedef struct addrinfo SockAddrInfo;
 
-    /// Alias for generic (i.e IPv4 and IPv6) BSD-like SocketGBN data structure
+    /// Alias for generic (i.e IPv4 and IPv6) BSD-like SocketTCP data structure
     typedef struct sockaddr_storage SockAddrStorage;
 
     /// Socket option flag enumeration.
     enum SocketFlag
     {
-        SERVER 		= 1 << 0, 	///< SocketGBN flag for server
-        CLIENT 		= 1 << 1,	///< SocketGBN flag for client
-        TCP 		= 1 << 2,	///< SocketGBN flag for TCP
-        UDP 		= 1 << 3,	///< SocketGBN flag for UDP
-        BLOCK 		= 1 << 4,	///< SocketGBN flag for a blocking Socket
-        NONBLOCK 	= 1 << 5,	///< SocketGBN flag for a nonblocking Socket
+        SERVER 		= 1 << 0, 	///< SocketTCP flag for server
+        CLIENT 		= 1 << 1,	///< SocketTCP flag for client
+        TCP 		= 1 << 2,	///< SocketTCP flag for TCP
+        UDP 		= 1 << 3,	///< SocketTCP flag for UDP
+        BLOCK 		= 1 << 4,	///< SocketTCP flag for a blocking Socket
+        NONBLOCK 	= 1 << 5,	///< SocketTCP flag for a nonblocking Socket
     };
 
     /**
-    * \brief THE SocketGBN class.
+    * \brief THE SocketTCP class.
     * \details Stores Socket structures common to all Socket types. This
     * includes provisions and functions for TCP and UDP
     */
-    class SocketGBN
+    class SocketTCP
     {
         public:
             /**
@@ -73,47 +73,47 @@ namespace socksahoy
             * is to create a client flag. Note that for a client Socket, the
             * port is the destination port and for the server, this is the
             * port the Socket binds to on the local host.
-            * \param port The port to start the SocketGBN on
-            * \param flag Flag to set the type of SocketGBN.
+            * \param port The port to start the SocketTCP on
+            * \param flag Flag to set the type of SocketTCP.
             * \param destAddr Destination address to send data to
             */
-            SocketGBN(unsigned int port,
+            SocketTCP(unsigned int port,
                     unsigned int flag = SERVER | UDP | BLOCK,
                     const std::string& destAddr = std::string());
 
             /// Disable the copy constructor
-            SocketGBN(SocketGBN const&) = delete;
+            SocketTCP(SocketTCP const&) = delete;
 
             /// Enable the move constructor
-            SocketGBN(SocketGBN&&);
+            SocketTCP(SocketTCP&&);
 
             /// Enable the operator= operator for move assignment.
-            SocketGBN& operator=(SocketGBN&&);
+            SocketTCP& operator=(SocketTCP&&);
 
             /**
             * \brief Destructor
-            * \details Closes SocketGBN file
+            * \details Closes SocketTCP file
             * descriptor.
             */
-            ~SocketGBN();
+            ~SocketTCP();
 
             /**
-            * \brief Receive data from a remote SocketGBN.
+            * \brief Receive data from a remote SocketTCP.
             * \details Wrapper around the recvfrom() function.
-            * \param dest_packet The packet to populate with received data.
+            * \param dest_segment The segment to populate with received data.
             */
             template <std::size_t Size>
-            void Receive(Packet<Size>& dest_packet)
+            void Receive(Segment<Size>& dest_segment)
             {
                 //Checks for errors and tracks the actual number of bytes received
                 int numBytes = 0;
 
                 socklen_t remoteAddrLen = sizeof(remoteAddr_); \
 
-                    // Receive a packet of data from the base_SocketGBN and store the address
-                    // of the sender so that we can send packets back to them.
+                    // Receive a segment of data from the base_SocketTCP and store the address
+                    // of the sender so that we can send segments back to them.
                     numBytes = recvfrom(baseSock_,
-                        dest_packet.GetPacket(),
+                        dest_segment.Getsegment(),
                         Size,
                         0, (SockAddr*)&remoteAddr_,
                         &remoteAddrLen);
@@ -124,40 +124,40 @@ namespace socksahoy
                     throw std::runtime_error(std::strerror(errno));
                 }
 
-                //Unpack the packet's header data.
-                dest_packet.Deserialize();
+                //Unpack the segment's header data.
+                dest_segment.Deserialize();
             }
 
             /**
-            * \brief Send a single packet to a remote host.
+            * \brief Send a single segment to a remote host.
             * \details Wrapper around the sendto() function.
-            * \param packet The packet to send to the remote SocketGBN.
-            * \param destAddr The destination address to send packet to.
+            * \param segment The segment to send to the remote SocketTCP.
+            * \param destAddr The destination address to send segment to.
             * \param destPort The destination port of the receiving host.
-            * \param sendBitErrorPercent Percent of data packets to corrupt.
-            * \param recvPacketLoss Percent of data packets that will be lost.
+            * \param sendBitErrorPercent Percent of data segments to corrupt.
+            * \param recvsegmentLoss Percent of data segments that will be lost.
             */
             template <std::size_t Size>
-            void Send(Packet<Size>& packet,
+            void Send(Segment<Size>& segment,
                 const std::string& destAddr,
                 unsigned int destPort,
                 int sendBitErrorPercent,
-                int sendPacketLoss)
+                int sendSegmentLoss)
             {
                 //Checks for errors and tracks the actual number of bytes sent
                 int numBytes = 0;
 
-                // Reuse the addressinfo object to send packets
+                // Reuse the addressinfo object to send segments
                 GetAddressInfo(destPort, destAddr);
 
-                //Pack the header info into the packet.
-                packet.Serialize();
+                //Pack the header info into the segment.
+                segment.Serialize();
 
-                //Calculate the packet's checksum value.
-                packet.checksum_ = packet.CalculateChecksum(sendBitErrorPercent);
+                //Calculate the segment's checksum value.
+                segment.CalculateChecksum(sendBitErrorPercent);
 
-                //If sendPacketLoss <= 0, no loss should occur
-                if (sendPacketLoss > 0)
+                //If sendSegmentLoss <= 0, no loss should occur
+                if (sendSegmentLoss > 0)
                 {
                     // Random number engine and distribution
                     // Distribution in range [1, 100]
@@ -170,25 +170,25 @@ namespace socksahoy
                     int random_number = uniformDist(rng);
 
                     //Check the random number against the loss percent to see if this
-                    //packet will be lost, if it's greater than it the packet won't be
+                    //segment will be lost, if it's greater than it the segment won't be
                     //lost
-                    if (sendPacketLoss < random_number)
+                    if (sendSegmentLoss < random_number)
                     {
-                        //Send the packet to the specified address
+                        //Send the segment to the specified address
                         numBytes = sendto(baseSock_,
-                            packet.GetPacket(),
-                            packet.GetPacketSize() + PACKET_HEADER_LEN,
+                            segment.Getsegment(),
+                            segment.GetsegmentSize() + segment_HEADER_LEN,
                             0, addr_->ai_addr, addr_->ai_addrlen);
                     }
                 }
 
-                //No loss, sendPacketLoss <= 0
+                //No loss, sendSegmentLoss <= 0
                 else
                 {
-                    //Send the packet to the specified address
+                    //Send the segment to the specified address
                     numBytes = sendto(baseSock_,
-                        packet.GetPacket(),
-                        packet.GetPacketSize() + PACKET_HEADER_LEN,
+                        segment.Getsegment(),
+                        segment.GetsegmentSize() + segment_HEADER_LEN,
                         0, addr_->ai_addr, addr_->ai_addrlen);
                 }
 
@@ -202,14 +202,14 @@ namespace socksahoy
             }
 
             /**
-            * \brief Check if a packet can be received.
+            * \brief Check if a segment can be received.
             * \details Wrapper around the select() function.
             * \return If the select function timed out.
             */
             bool CheckReceive();
 
             /**
-            * \brief Bind a SocketGBN to a port.
+            * \brief Bind a SocketTCP to a port.
             */
             void Bind();
 
@@ -226,10 +226,10 @@ namespace socksahoy
             unsigned int GetRemotePort();
 
         private:
-            /// Base SocketGBN file descriptor.
+            /// Base SocketTCP file descriptor.
             int baseSock_;
 
-            /// Set of SocketGBN file discriptors for select().
+            /// Set of SocketTCP file discriptors for select().
             fd_set readfds;
 
             /// Time structure used for setting timeout in select().
@@ -241,14 +241,14 @@ namespace socksahoy
             /// Address information structure.
             SockAddrInfo* addr_;
 
-            /// Connecting SocketGBN information
+            /// Connecting SocketTCP information
             SockAddrStorage remoteAddr_;
 
-            /// The port this SocketGBN connects/binds to
+            /// The port this SocketTCP connects/binds to
             unsigned int port_;
 
-            /// The sequence number of the next expected packet on the recieve side.
-            int NextExpectedPacket_;
+            /// The sequence number of the next expected segment on the recieve side.
+            int NextExpectedsegment_;
 
             /**
             * \brief Helper function to get address info for remote machine.
@@ -267,6 +267,6 @@ namespace socksahoy
     };
 }
 
-#endif /* end of SocketGBN.hpp */
+#endif /* end of SocketTCP.hpp */
 
 // vim: set expandtab ts=4 sw=4:

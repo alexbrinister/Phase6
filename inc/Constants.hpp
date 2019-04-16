@@ -44,44 +44,38 @@ namespace socksahoy
     * Since this is at the minimum guaranteed value, the packet is
     * guaranteed to not suffer fragmentation and thus no loss.
     */
-    const std::size_t MAX_PACKET_LEN = 508;
+    const std::size_t MAX_FULL_SEGMENT_LEN = 508;
 
     /// The length of the header
-    const std::size_t PACKET_HEADER_LEN = 11;
+    const std::size_t SEGMENT_HEADER_LEN = 24;
 
     /**
     * \brief Maximum amount of data you can stuff in a packet.
     * \details Every packet is sent with a size of type size_t. Therefore, the
     * maximum amount of data is the maximum packet length minus the size.
     */
-    const std::size_t MAX_PACKET_DATA_LEN = MAX_PACKET_LEN - PACKET_HEADER_LEN;
+    const std::size_t MAX_SEGMENT_DATA_LEN = MAX_FULL_SEGMENT_LEN - SEGMENT_HEADER_LEN;
 
     /**
     * \brief Maximum size of an ack packet.
     * \details An ack packet's size is equal to the size of the header
     */
-    const std::size_t MAX_ACK_PACKET_LEN = PACKET_HEADER_LEN;
-
-    /**
-    * \brief The value for an ack type of packet
-    * \details
-    */
-    const uint8_t ACK_TYPE_PACKET = 0;
-
-    /**
-    * \brief The value for an data type of packet
-    * \details
-    */
-    const uint8_t DATA_TYPE_PACKET = 1;
+    const std::size_t MAX_EMPTY_SEGMENT_LEN = SEGMENT_HEADER_LEN;
 
     /// Maximum length of a file path
     const std::size_t MAX_FILE_PATH_LEN = PATH_MAX;
 
-    //The number of packets that can be in the sender window
-    const std::size_t MAX_SEND_WINDOW_SIZE = 20;
+    //The number of packets that can be in the receiver window
+    const std::size_t MAX_RECV_WINDOW_SIZE = 4096;
 
-    //The timeout value in mS
-    const std::float_t TIMEOUT_VALUE = 50;
+    //The starting timeout value in mS
+    const std::float_t STARTING_TIMEOUT_VALUE = 50.0;
+
+    //The alpha value for the timeout
+    const std::float_t ALPHA = 1.0/8.0;
+
+    //The beta value for the timeout
+    const std::float_t BETA = 1.0/4.0;
 }
 
 #endif /* End of Constants.hpp */

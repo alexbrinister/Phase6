@@ -1,6 +1,6 @@
 /**
-* \file SocketGBN.cpp
-* \details Linux/Windows SocketGBN Class - Definitions
+* \file SocketTCP.cpp
+* \details Linux/Windows SocketTCP Class - Definitions
 * \author Alex Brinister
 * \author Colin Rockwood
 * \author Mike Geoffroy
@@ -24,7 +24,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/select.h>
-/* Linux SocketGBN/network library headers */
+/* Linux SocketTCP/network library headers */
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -33,12 +33,12 @@
 // For setting to non-blocking. Works on both Win and Lin
 #include <fcntl.h>
 
-/* Phase 2 SocketGBN library headers */
+/* Phase 2 SocketTCP library headers */
 #include "Constants.hpp"
-#include "SocketGBN.hpp"
-#include "Packet.hpp"
+#include "SocketTCP.hpp"
+#include "Segment.hpp"
 
-socksahoy::SocketGBN::SocketGBN(unsigned int port,
+socksahoy::SocketTCP::SocketTCP(unsigned int port,
                                 unsigned int flag,
                                 const std::string& destAddr)
     : baseSock_(0), addr_(nullptr), port_(port)
@@ -67,7 +67,7 @@ socksahoy::SocketGBN::SocketGBN(unsigned int port,
 
     GetAddressInfo(port_, destAddr);
 
-    // Create the SocketGBN file descriptor (or kernel object in Windows)
+    // Create the SocketTCP file descriptor (or kernel object in Windows)
     baseSock_ = socket(addr_->ai_family,
                        addr_->ai_socktype,
                        addr_->ai_protocol);
@@ -101,16 +101,16 @@ socksahoy::SocketGBN::SocketGBN(unsigned int port,
 
 }
 
-socksahoy::SocketGBN::~SocketGBN()
+socksahoy::SocketTCP::~SocketTCP()
 {
-    // Close the SocketGBN file descriptor
+    // Close the SocketTCP file descriptor
     if (baseSock_ != 0)
     {
         close(baseSock_);
     }
 }
 
-bool socksahoy::SocketGBN::CheckReceive()
+bool socksahoy::SocketTCP::CheckReceive()
 {
     //Checks for errors and tracks the actual number of bytes received
     int numBytes = 0;
@@ -150,7 +150,7 @@ bool socksahoy::SocketGBN::CheckReceive()
 }
 
 void
-socksahoy::SocketGBN::Bind()
+socksahoy::SocketTCP::Bind()
 {
     int error = bind(baseSock_, addr_->ai_addr, addr_->ai_addrlen);
 
@@ -166,7 +166,7 @@ socksahoy::SocketGBN::Bind()
 }
 
 std::string
-socksahoy::SocketGBN::GetRemoteAddress()
+socksahoy::SocketTCP::GetRemoteAddress()
 {
     // String to capture the connecting IP address
     std::string remoteaddrStr(INET_ADDRSTRLEN, '\0');
@@ -181,7 +181,7 @@ socksahoy::SocketGBN::GetRemoteAddress()
 }
 
 unsigned int
-socksahoy::SocketGBN::GetRemotePort()
+socksahoy::SocketTCP::GetRemotePort()
 {
     in_port_t rcvdPort = ((SockAddrIpv4*)&remoteAddr_)->sin_port;
 
@@ -190,7 +190,7 @@ socksahoy::SocketGBN::GetRemotePort()
 }
 
 void
-socksahoy::SocketGBN::GetAddressInfo(unsigned int port,
+socksahoy::SocketTCP::GetAddressInfo(unsigned int port,
                                      const std::string& addrStr)
 {
     std::string port_str(std::to_string(port));
@@ -214,7 +214,7 @@ socksahoy::SocketGBN::GetAddressInfo(unsigned int port,
     }
 }
 
-void socksahoy::SocketGBN::FreeAddressInfo()
+void socksahoy::SocketTCP::FreeAddressInfo()
 {
     // Can't free if addr_ is null...
     if (addr_ != nullptr)
