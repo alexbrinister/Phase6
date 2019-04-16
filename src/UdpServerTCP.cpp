@@ -62,6 +62,8 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
 
     int tempSendWindowSize = 0;
 
+    bool recievedFin = false;
+
     std::streamoff fileSize = 0;
 
     auto startTimer = std::chrono::high_resolution_clock::now();
@@ -457,7 +459,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
 
                         continue;
                     }
-
+            
                     //If the segment is an ack segment
                     else if (AckSegment.GetAckFlag())
                     {
@@ -537,72 +539,99 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         }
                     }
 
-                    //If the data in the ack segment is in order
-                    if (AckSegment.GetSequenceNumber() == startingServerSequenceNumber + numberOfRecievedBytes + 2)
+                    //If a fin segment hasn't been recieved from the server
+                    if (!recievedFin)
                     {
-                        //Extract the data from the segment and add it to the recieve window
-                        for (int i = 0; i < AckSegment.GetDataLength(); i++)
+                        //If the segment is a fin segment
+                        if (segment.GetFinFlag())
                         {
-                            //Add a byte of data to the recieve window
-                            recvWindow_[recvNextPosition] = AckSegment.GetData()[i];
+                            // Make an ackSegment.
+                            Segment<MAX_EMPTY_SEGMENT_LEN> ackSegment(dataPort_, destPort, 0,
+                                segment.GetSequenceNumber() + 1, false, true, false, false, false, false, currentClientRecvWindowSize, 0, 0);
 
-                            //Move the recieve window
-                            recvNextPosition++;
+                            //Send the segment to the server
+                            dataSocket_.Send<MAX_EMPTY_SEGMENT_LEN>(segment, destAddr, destPort,
+                                0, 0);
+
+                            recievedFin = true;
+
+                            //Write the data in the recieve window to the file
+                            outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
+
+                            continue;
                         }
 
-                        //If out of order segments have arrived before
-                        if (recvNextPosition < recvTempNextPosition)
+                        //If the data in the ack segment is in order
+                        if (AckSegment.GetSequenceNumber() == startingServerSequenceNumber + numberOfRecievedBytes + 2)
                         {
-                            nextSendAckNumber += recvTempNextPosition - recvNextPosition;
-                            recvNextPosition == recvTempNextPosition;
+                            //Extract the data from the segment and add it to the recieve window
+                            for (int i = 0; i < AckSegment.GetDataLength(); i++)
+                            {
+                                //Add a byte of data to the recieve window
+                                recvWindow_[recvNextPosition] = AckSegment.GetData()[i];
+
+                                //Move the recieve window
+                                recvNextPosition++;
+                            }
+
+                            //If out of order segments have arrived before
+                            if (recvNextPosition < recvTempNextPosition)
+                            {
+                                nextSendAckNumber += recvTempNextPosition - recvNextPosition;
+                                recvNextPosition == recvTempNextPosition;
+                            }
+
+                            //No out of order segments
+                            else
+                            {
+                                nextSendAckNumber += AckSegment.GetDataLength();
+                            }
+
+                            numberOfBytesInRecieveWindow += AckSegment.GetDataLength();
+                            currentClientRecvWindowSize -= AckSegment.GetDataLength();
                         }
 
-                        //No out of order segments
-                        else
+                        //If the data in the segment is out of order, but not data that's already been recieved
+                        else if (AckSegment.GetSequenceNumber() >= startingServerSequenceNumber + numberOfRecievedBytes + 2)
                         {
-                            nextSendAckNumber += AckSegment.GetDataLength();
+                            recvTempNextPosition = recvNextPosition + AckSegment.GetSequenceNumber() - nextSendAckNumber;
+
+                            //Extract the data from the segment and add it to the recieve window
+                            for (int i = 0; i < AckSegment.GetDataLength(); i++)
+                            {
+                                //Add a byte of data to the recieve window
+                                recvWindow_[recvTempNextPosition] = AckSegment.GetData()[i];
+
+                                //Move the recieve window
+                                recvTempNextPosition++;
+                            }
+
+                            numberOfBytesInRecieveWindow += AckSegment.GetDataLength();
+                            currentClientRecvWindowSize -= AckSegment.GetDataLength();
                         }
 
-                        numberOfBytesInRecieveWindow += AckSegment.GetDataLength();
-                        currentClientRecvWindowSize -= AckSegment.GetDataLength();
-                    }
-
-                    //If the data in the segment is out of order, but not data that's already been recieved
-                    else if(AckSegment.GetSequenceNumber() >= startingServerSequenceNumber + numberOfRecievedBytes + 2)
-                    {
-                        recvTempNextPosition = recvNextPosition + AckSegment.GetSequenceNumber() - nextSendAckNumber;
-
-                        //Extract the data from the segment and add it to the recieve window
-                        for (int i = 0; i < AckSegment.GetDataLength(); i++)
+                        //If the recieve buffer is full
+                        if (currentClientRecvWindowSize == 0)
                         {
-                            //Add a byte of data to the recieve window
-                            recvWindow_[recvTempNextPosition] = AckSegment.GetData()[i];
+                            //Write the data in the recieve window to the file
+                            outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
 
-                            //Move the recieve window
-                            recvTempNextPosition++;
+                            //Reset the recieve window
+                            currentClientRecvWindowSize = numberOfBytesInRecieveWindow;
+                            numberOfBytesInRecieveWindow = 0;
+                            recvTempNextPosition = 0;
+                            recvBasePosition = 0;
+                            recvNextPosition = 0;
                         }
-
-                        numberOfBytesInRecieveWindow += AckSegment.GetDataLength();
-                        currentClientRecvWindowSize -= AckSegment.GetDataLength();
-                    }
-
-                    //If the recieve buffer is full
-                    if (currentClientRecvWindowSize == 0)
-                    {
-                        //Write the data in the recieve window to the file
-                        outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
-
-                        //Reset the recieve window
-                        currentClientRecvWindowSize = numberOfBytesInRecieveWindow;
-                        numberOfBytesInRecieveWindow = 0;
-                        recvTempNextPosition = 0;
-                        recvBasePosition = 0;
-                        recvNextPosition = 0;
                     }
                 }
 
-                //Send an ack with the next data packet
-                sendAck = true;
+                //If a fin segment hasn't been recieved from the server
+                if (!recievedFin)
+                {
+                    //Send an ack with the next data packet
+                    sendAck = true;
+                }
 
                 std::chrono::duration<float, std::milli> timermiliSeconds =
                     currentTimer - startTimer;
@@ -663,91 +692,107 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         continue;
                     }
 
-                    //If the segment is a fin segment
-                    if (segment.GetFinFlag())
+                    //If a fin segment hasn't been recieved from the server
+                    if (!recievedFin)
                     {
-                        // Make an ackSegment.
-                        Segment<MAX_EMPTY_SEGMENT_LEN> ackSegment(dataPort_, destPort, 0,
-                            segment.GetSequenceNumber() + 1, false, true, false, false, false, false, currentClientRecvWindowSize, 0, 0);
+                        //If the segment is a fin segment
+                        if (segment.GetFinFlag())
+                        {
+                            // Make an ackSegment.
+                            Segment<MAX_EMPTY_SEGMENT_LEN> ackSegment(dataPort_, destPort, 0,
+                                segment.GetSequenceNumber() + 1, false, true, false, false, false, false, currentClientRecvWindowSize, 0, 0);
 
-                        //Send the segment to the server
-                        dataSocket_.Send<MAX_EMPTY_SEGMENT_LEN>(segment, destAddr, destPort,
-                            0, 0);
+                            //Send the segment to the server
+                            dataSocket_.Send<MAX_EMPTY_SEGMENT_LEN>(segment, destAddr, destPort,
+                                0, 0);
 
+
+                            //Write the data in the recieve window to the file
+                            outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
+
+                            break;
+                        }
+
+                        //If the data in the ack segment is in order
+                        if (segment.GetSequenceNumber() == startingServerSequenceNumber + numberOfRecievedBytes + 2)
+                        {
+                            //Extract the data from the segment and add it to the recieve window
+                            for (int i = 0; i < segment.GetDataLength(); i++)
+                            {
+                                //Add a byte of data to the recieve window
+                                recvWindow_[recvNextPosition] = segment.GetData()[i];
+
+                                //Move the recieve window
+                                recvNextPosition++;
+                            }
+
+                            //If out of order segments have arrived before
+                            if (recvNextPosition < recvTempNextPosition)
+                            {
+                                nextSendAckNumber += recvTempNextPosition - recvNextPosition;
+                                recvNextPosition == recvTempNextPosition;
+                            }
+
+                            //No out of order segments
+                            else
+                            {
+                                nextSendAckNumber += segment.GetDataLength();
+                            }
+
+                            numberOfBytesInRecieveWindow += segment.GetDataLength();
+                            currentClientRecvWindowSize -= segment.GetDataLength();
+                        }
+
+                        //If the data in the segment is out of order, but not data that's already been recieved
+                        else if (segment.GetSequenceNumber() >= startingServerSequenceNumber + numberOfRecievedBytes + 2)
+                        {
+                            recvTempNextPosition = recvNextPosition + segment.GetSequenceNumber() - nextSendAckNumber;
+
+                            //Extract the data from the segment and add it to the recieve window
+                            for (int i = 0; i < segment.GetDataLength(); i++)
+                            {
+                                //Add a byte of data to the recieve window
+                                recvWindow_[recvTempNextPosition] = segment.GetData()[i];
+
+                                //Move the recieve window
+                                recvTempNextPosition++;
+                            }
+
+                            numberOfBytesInRecieveWindow += segment.GetDataLength();
+                            currentClientRecvWindowSize -= segment.GetDataLength();
+                        }
+
+                        //If the recieve buffer is full
+                        if (currentClientRecvWindowSize == 0)
+                        {
+                            //Write the data in the recieve window to the file
+                            outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
+
+                            //Reset the recieve window
+                            currentClientRecvWindowSize = numberOfBytesInRecieveWindow;
+                            numberOfBytesInRecieveWindow = 0;
+                            recvTempNextPosition = 0;
+                            recvBasePosition = 0;
+                            recvNextPosition = 0;
+                        }
+                    }
+
+                    else
+                    {
                         break;
-                    }
-
-                    //If the data in the ack segment is in order
-                    if (segment.GetSequenceNumber() == startingServerSequenceNumber + numberOfRecievedBytes + 2)
-                    {
-                        //Extract the data from the segment and add it to the recieve window
-                        for (int i = 0; i < segment.GetDataLength(); i++)
-                        {
-                            //Add a byte of data to the recieve window
-                            recvWindow_[recvNextPosition] = segment.GetData()[i];
-
-                            //Move the recieve window
-                            recvNextPosition++;
-                        }
-
-                        //If out of order segments have arrived before
-                        if (recvNextPosition < recvTempNextPosition)
-                        {
-                            nextSendAckNumber += recvTempNextPosition - recvNextPosition;
-                            recvNextPosition == recvTempNextPosition;
-                        }
-
-                        //No out of order segments
-                        else
-                        {
-                            nextSendAckNumber += segment.GetDataLength();
-                        }
-
-                        numberOfBytesInRecieveWindow += segment.GetDataLength();
-                        currentClientRecvWindowSize -= segment.GetDataLength();
-                    }
-
-                    //If the data in the segment is out of order, but not data that's already been recieved
-                    else if (segment.GetSequenceNumber() >= startingServerSequenceNumber + numberOfRecievedBytes + 2)
-                    {
-                        recvTempNextPosition = recvNextPosition + segment.GetSequenceNumber() - nextSendAckNumber;
-
-                        //Extract the data from the segment and add it to the recieve window
-                        for (int i = 0; i < segment.GetDataLength(); i++)
-                        {
-                            //Add a byte of data to the recieve window
-                            recvWindow_[recvTempNextPosition] = segment.GetData()[i];
-
-                            //Move the recieve window
-                            recvTempNextPosition++;
-                        }
-
-                        numberOfBytesInRecieveWindow += segment.GetDataLength();
-                        currentClientRecvWindowSize -= segment.GetDataLength();
-                    }
-
-                    //If the recieve buffer is full
-                    if (currentClientRecvWindowSize == 0)
-                    {
-                        //Write the data in the recieve window to the file
-                        outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
-
-                        //Reset the recieve window
-                        currentClientRecvWindowSize = numberOfBytesInRecieveWindow;
-                        numberOfBytesInRecieveWindow = 0;
-                        recvTempNextPosition = 0;
-                        recvBasePosition = 0;
-                        recvNextPosition = 0;
                     }
                 }
 
-                // Make an ackSegment.
-                Segment<MAX_EMPTY_SEGMENT_LEN> ackSegment(dataPort_, destPort, 0,
-                    nextSendAckNumber, false, true, false, false, false, false, currentClientRecvWindowSize, 0, 0);
+                if (!recievedFin)
+                {
+                    // Make an ackSegment.
+                    Segment<MAX_EMPTY_SEGMENT_LEN> ackSegment(dataPort_, destPort, 0,
+                        nextSendAckNumber, false, true, false, false, false, false, currentClientRecvWindowSize, 0, 0);
 
-                //Send the segment to the server
-                dataSocket_.Send<MAX_EMPTY_SEGMENT_LEN>(segment, destAddr, destPort,
-                    sendBitErrorPercent, sendsegmentLoss);
+                    //Send the segment to the server
+                    dataSocket_.Send<MAX_EMPTY_SEGMENT_LEN>(segment, destAddr, destPort,
+                        sendBitErrorPercent, sendsegmentLoss);
+                }                
 
                 std::chrono::duration<float, std::milli> timermiliSeconds =
                     currentTimer - startTimer;
