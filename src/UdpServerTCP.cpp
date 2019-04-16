@@ -454,6 +454,8 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         //Send the ack segmet to the server
                         connSocket_.Send<MAX_EMPTY_SEGMENT_LEN>(AckSegment, destAddr,
                             destPort, bitErrorPercent, segmentLoss);
+
+                        continue;
                     }
 
                     //If the segment is an ack segment
@@ -476,7 +478,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
 
                             //Move the base position
 
-                            //If the mosve would go beyond the end of the ring buffer
+                            //If the move would go beyond the end of the ring buffer
                             if (sendBasePosition + segmentLength > currentClientSendWindowSize-1)
                             {
                                 sendBasePosition = currentClientSendWindowSize - (1 + sendBasePosition + segmentLength);
@@ -488,34 +490,40 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                                 sendBasePosition += segmentLength;
                             }
 
-                            //If we are in CA mode
-                            if (currentClientSendWindowSize >= ssthresh)
+                            //If the window size is currently smaller than the max window size
+                            if (currentClientSendWindowSize < maxClientSendWindowSize)
                             {
-                                tempSendWindowSize += MAX_FULL_SEGMENT_LEN * ((float)MAX_FULL_SEGMENT_LEN / (float)currentClientSendWindowSize);
+                                //If we are in CA mode
+                                if (currentClientSendWindowSize >= ssthresh)
+                                {
+                                    tempSendWindowSize += MAX_FULL_SEGMENT_LEN * ((float)MAX_FULL_SEGMENT_LEN / (float)currentClientSendWindowSize);
 
-                                if (tempSendWindowSize >= MAX_FULL_SEGMENT_LEN)
+                                    if (tempSendWindowSize >= MAX_FULL_SEGMENT_LEN)
+                                    {
+                                        currentClientSendWindowSize += MAX_FULL_SEGMENT_LEN;
+                                        tempSendWindowSize = 0;
+                                        sendWindowSegmentLength_.push_back(0);
+                                    }
+                                }
+                                //Must be in SS mode
+                                else
                                 {
                                     currentClientSendWindowSize += MAX_FULL_SEGMENT_LEN;
-                                    tempSendWindowSize = 0;
-                                }
-                            }
-                            //Must be in SS mode
-                            else 
-                            {
-                                currentClientSendWindowSize += MAX_FULL_SEGMENT_LEN;
+                                    sendWindowSegmentLength_.push_back(0);
 
-                                //If we've gone from SS to CA mode
-                                if (currentClientSendWindowSize > ssthresh)
+                                    //If we've gone from SS to CA mode
+                                    if (currentClientSendWindowSize > ssthresh)
+                                    {
+                                        currentClientSendWindowSize = ssthresh;
+                                    }
+                                }
+
+                                //If the new client window size is greater than the max set by the reciever
+                                if (currentClientSendWindowSize > maxClientSendWindowSize)
                                 {
-                                    currentClientSendWindowSize = ssthresh;
+                                    currentClientSendWindowSize = maxClientSendWindowSize;
                                 }
-                           }
-
-                            //If the current client window size is greater than the max set by the reciever
-                            if (currentClientSendWindowSize > maxClientSendWindowSize)
-                            {
-                                currentClientSendWindowSize = maxClientSendWindowSize;
-                            }
+                            }                            
 
                             //Update the duplicate number
                             duplicateAckSequenceNumber = AckSegment.GetAckNumber();
@@ -636,37 +644,8 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
         //Loop until the reciever completes it's data transfer and sends it's fin bit
         while (true)
         {
-            //If the fin segment wasn't acked
-            if (!finAcked)
-            {
-                // Get the current timer value in milliseconds
-                currentTimer = std::chrono::high_resolution_clock::now();
-
-                std::chrono::duration<float, std::milli> timermiliSeconds =
-                    currentTimer - startTimer;
-
-                //If the timeout occurred
-                if (timermiliSeconds.count() >= TimoutInterval_)
-                {
-                    //Recalculate the estimated RTT value 
-                    EstimatedRTT_ = (1 - ALPHA)*EstimatedRTT_ + ALPHA * timermiliSeconds.count();
-
-                    //Recalculate the RTT deviation value
-                    DevRTT_ = (1 - BETA)*DevRTT_ + BETA * fabs(timermiliSeconds.count() - EstimatedRTT_);
-
-                    //Recalculate the Timeout value
-                    TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
-
-                    //Resend the fin segment
-                    connSocket_.Send<MAX_EMPTY_SEGMENT_LEN>(finSegment, destAddr,
-                        destPort, bitErrorPercent, segmentLoss);
-
-                    //Restart the timer
-                    startTimer = std::chrono::high_resolution_clock::now();
-                }
-            }
-
-            else
+            //A packet has arrived
+            if (dataSocket_.CheckReceive())
             {
                 // Make a segment.
                 Segment<MAX_FULL_SEGMENT_LEN> segment;
@@ -681,6 +660,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                     if (segment.GetAckFlag() && segment.GetAckNumber() == finSequenceNumber + 1)
                     {
                         finAcked = true;
+                        continue;
                     }
 
                     //If the segment is a fin segment
@@ -688,7 +668,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                     {
                         // Make an ackSegment.
                         Segment<MAX_EMPTY_SEGMENT_LEN> ackSegment(dataPort_, destPort, 0,
-                            segment.GetSequenceNumber()+1, false, true, false, false, false, false, currentClientRecvWindowSize, 0, 0);
+                            segment.GetSequenceNumber() + 1, false, true, false, false, false, false, currentClientRecvWindowSize, 0, 0);
 
                         //Send the segment to the server
                         dataSocket_.Send<MAX_EMPTY_SEGMENT_LEN>(segment, destAddr, destPort,
@@ -783,6 +763,35 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
 
                 //Mark the start time of the timer
                 startTimer = std::chrono::high_resolution_clock::now();
+            }
+            //If the fin segment wasn't acked
+            if (!finAcked)
+            {
+                // Get the current timer value in milliseconds
+                currentTimer = std::chrono::high_resolution_clock::now();
+
+                std::chrono::duration<float, std::milli> timermiliSeconds =
+                    currentTimer - startTimer;
+
+                //If the timeout occurred
+                if (timermiliSeconds.count() >= TimoutInterval_)
+                {
+                    //Recalculate the estimated RTT value 
+                    EstimatedRTT_ = (1 - ALPHA)*EstimatedRTT_ + ALPHA * timermiliSeconds.count();
+
+                    //Recalculate the RTT deviation value
+                    DevRTT_ = (1 - BETA)*DevRTT_ + BETA * fabs(timermiliSeconds.count() - EstimatedRTT_);
+
+                    //Recalculate the Timeout value
+                    TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
+
+                    //Resend the fin segment
+                    connSocket_.Send<MAX_EMPTY_SEGMENT_LEN>(finSegment, destAddr,
+                        destPort, bitErrorPercent, segmentLoss);
+
+                    //Restart the timer
+                    startTimer = std::chrono::high_resolution_clock::now();
+                }
             }
         }
 
