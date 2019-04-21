@@ -108,7 +108,7 @@ namespace socksahoy
             float_t DevRTT_ = 0.0;
 
             //The current timeout interval
-            float_t TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
+            float_t TimeoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
 
             unsigned int ssthresh = 11 * MAX_FULL_SEGMENT_LEN;
 

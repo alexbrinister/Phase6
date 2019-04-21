@@ -123,7 +123,7 @@ bool socksahoy::SocketTCP::CheckReceive()
 
     // Set the time out to be 10us
     tv.tv_sec = 0;
-    tv.tv_usec = 10;
+    tv.tv_usec = 1000;
 
     numBytes = select(n, &readfds, NULL, NULL, &tv);
 

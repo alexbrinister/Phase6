@@ -282,7 +282,7 @@ namespace socksahoy
 
             // Add 8 bit values from the packet to checksum_ until there
             // aren't anymore 8 bit values
-            for (i = 0; i < (dataLength_ + SEGMENT_HEADER_LEN-1); i+=2)
+            for (i = 0; i < (vectorSize_-1); i+=2)
             {
                 //Concatinate the next two bytes into a 16 bit value
                 tempval = (data_[i] << 8) | (uint8_t)data_[i+1];
@@ -292,7 +292,7 @@ namespace socksahoy
             }
 
             //If the last byte wasn't added
-            if (i == dataLength_ + SEGMENT_HEADER_LEN)
+            if (i == vectorSize_-1)
             {
                 //Make the last byte the upper half of a 16 bit value
                 tempval = (data_[i] << 8) | 0x00;
@@ -326,7 +326,7 @@ namespace socksahoy
             }
 
             // Perform a one's complement on checksum.
-            checksum_ ^= 0xFFFF;
+            checksum_ = ~checksum_;
                        
             // The checksum value is stored in the 17th and 18th bytes
             data_[16] = (checksum_ & 0xFF00) >> 8;
@@ -421,9 +421,10 @@ namespace socksahoy
             data_[14] = (rwnd_ & 0xFF00) >> 8;
             data_[15] = rwnd_ & 0xFF;
 
-            // The checksum value is stored in the 17th and 18th bytes
-            data_[16] = (checksum_ & 0xFF00) >> 8;
-            data_[17] = checksum_ & 0xFF;
+            // The checksum value is stored in the 17th and 18th bytes, 
+            //added by the calculate checksum function, zeroed out here.
+            data_[16] = 0;
+            data_[17] = 0;
 
             // The urgent data pointer is stored in the 19th and 20th bytes
             data_[18] = (urgDataPointer_ & 0xFF00) >> 8;
@@ -512,6 +513,10 @@ namespace socksahoy
                 // The options field is stored in the 23rd and 24th bytes
                 options_ = data_[22] << 8;
                 options_ |= (uint8_t)data_[23];
+
+                vectorSize_ = headerLength_ + dataLength_;
+
+                data_.resize(vectorSize_);
             }
 
         /**

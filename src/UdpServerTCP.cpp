@@ -130,7 +130,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
             connSocket_->Receive(SynAckSegment);
 
             //If the syn ack segment isn't corrupt, has the correct flags set, and has the correct ack number
-            if (SynAckSegment.CalculateChecksum(0) == 0xff && SynAckSegment.GetSyncFlag() && SynAckSegment.GetAckFlag() && SynAckSegment.GetAckNumber() == startingClientSequenceNumber + 1)
+            if (SynAckSegment.CalculateChecksum(0) == 0x0000 && SynAckSegment.GetSyncFlag() && SynAckSegment.GetAckFlag() && SynAckSegment.GetAckNumber() == startingClientSequenceNumber + 1)
             {
                 //Make the max send window the same size of the recieve window
                 maxClientSendWindowSize = SynAckSegment.GetReceiveWindow();
@@ -173,7 +173,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
             currentTimer - startTimer;
 
         //If the timeout occurred
-        if (timermiliSeconds.count() >= TimoutInterval_)
+        if (timermiliSeconds.count() >= TimeoutInterval_)
         {
             //Recalculate the estimated RTT value 
             EstimatedRTT_ = (1 - ALPHA)*EstimatedRTT_ + ALPHA * timermiliSeconds.count();
@@ -182,7 +182,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
             DevRTT_ = (1 - BETA)*DevRTT_ + BETA * fabs(timermiliSeconds.count() - EstimatedRTT_);
 
             //Recalculate the Timeout value
-            TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
+            TimeoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
 
             //Resend the Sync packet
             connSocket_->Send(SynSegment, destAddr,
@@ -352,7 +352,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 currentTimer - startTimer;
 
             //If a timeout has occured, or three duplicate acks arrived
-            if (timermiliSeconds.count() >= TimoutInterval_ || numberOfDuplicateAcks >= 3)
+            if (timermiliSeconds.count() >= TimeoutInterval_ || numberOfDuplicateAcks >= 3)
             {
                 //Make the temp position start at the base position
                 size_t tempPosition = sendBasePosition;
@@ -406,7 +406,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                     DevRTT_ = (1 - BETA)*DevRTT_ + BETA * fabs(timermiliSeconds.count() - EstimatedRTT_);
 
                     //Recalculate the Timeout value
-                    TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
+                    TimeoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
                 }
 
                 else
@@ -467,7 +467,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 dataSocket_->Receive(AckSegment);
 
                 //If the segment is not corrupt
-                if (AckSegment.CalculateChecksum(0) == 0xff)
+                if (AckSegment.CalculateChecksum(0) == 0x0000)
                 {
                     currentServerRecvWindowSize = AckSegment.GetReceiveWindow();
 
@@ -691,7 +691,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 DevRTT_ = (1 - BETA)*DevRTT_ + BETA * fabs(timermiliSeconds.count() - EstimatedRTT_);
 
                 //Recalculate the Timeout value
-                TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
+                TimeoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
 
                 //Mark the start time of the timer
                 startTimer = std::chrono::high_resolution_clock::now();
@@ -731,7 +731,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 dataSocket_->Receive(segment);
 
                 //If the segment is not corrupt
-                if (segment.CalculateChecksum(0) == 0xff)
+                if (segment.CalculateChecksum(0) == 0x0000)
                 {
                     //If the segment has an ack for the fin segment
                     if (segment.GetAckFlag() && segment.GetAckNumber() == finSequenceNumber + 1)
@@ -862,7 +862,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 DevRTT_ = (1 - BETA)*DevRTT_ + BETA * fabs(timermiliSeconds.count() - EstimatedRTT_);
 
                 //Recalculate the Timeout value
-                TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
+                TimeoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
 
                 //Mark the start time of the timer
                 startTimer = std::chrono::high_resolution_clock::now();
@@ -877,7 +877,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                     currentTimer - startTimer;
 
                 //If the timeout occurred
-                if (timermiliSeconds.count() >= TimoutInterval_)
+                if (timermiliSeconds.count() >= TimeoutInterval_)
                 {
                     //Recalculate the estimated RTT value 
                     EstimatedRTT_ = (1 - ALPHA)*EstimatedRTT_ + ALPHA * timermiliSeconds.count();
@@ -886,7 +886,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                     DevRTT_ = (1 - BETA)*DevRTT_ + BETA * fabs(timermiliSeconds.count() - EstimatedRTT_);
 
                     //Recalculate the Timeout value
-                    TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
+                    TimeoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
 
                     //Resend the fin segment
                     connSocket_->Send(finSegment, destAddr,
@@ -999,7 +999,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
     connSocket_->Receive(SynSegment);
 
     //If the sync packet isn't corrupt and it's syn flag is set
-    if (SynSegment.CalculateChecksum(0) == 0xff && SynSegment.GetSyncFlag())
+    if (SynSegment.CalculateChecksum(0) == 0x0000 && SynSegment.GetSyncFlag())
     {
         //Store the starting sequence number of the client
         startingClientSequenceNumber = SynSegment.GetSequenceNumber();
@@ -1039,7 +1039,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
 
         //Send the Sync Ack packet
         connSocket_->Send(SynAckSegment, connSocket_->GetRemoteAddress(),
-            SynSegment.GetSourcePortNumber(), bitErrorPercent, segmentLoss);
+            clientPort, bitErrorPercent, segmentLoss);
 
         clientNumber_++;
 
@@ -1058,7 +1058,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                 connSocket_->Receive(AckSegment);
                 
                 //If the ack packet isn't corrupt, has the correct flags set, and has the correct ack number
-                if (AckSegment.CalculateChecksum(0) == 0xff && AckSegment.GetSyncFlag() && AckSegment.GetAckFlag() && AckSegment.GetAckNumber() == startingServerSequenceNumber + 1)
+                if (AckSegment.CalculateChecksum(0) == 0x0000 && AckSegment.GetSyncFlag() && AckSegment.GetAckFlag() && AckSegment.GetAckNumber() == startingServerSequenceNumber + 1)
                 {
                     //Connection established, break out of the loop
                     break;
@@ -1072,7 +1072,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                 currentTimer - startTimer;
 
             //If the timeout occurred
-            if (timermiliSeconds.count() >= TimoutInterval_)
+            if (timermiliSeconds.count() >= TimeoutInterval_)
             {                
                 //Recalculate the estimated RTT value 
                 EstimatedRTT_ = (1 - ALPHA)*EstimatedRTT_ + ALPHA * timermiliSeconds.count();
@@ -1081,11 +1081,11 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                 DevRTT_ = (1 - BETA)*DevRTT_ + BETA * fabs(timermiliSeconds.count() - EstimatedRTT_);
 
                 //Recalculate the Timeout value
-                TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
+                TimeoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
 
                 //Resend the Sync Ack packet without bit errors or loss
                 connSocket_->Send(SynAckSegment, connSocket_->GetRemoteAddress(),
-                    SynSegment.GetSourcePortNumber(), bitErrorPercent, segmentLoss);
+                    clientPort, bitErrorPercent, segmentLoss);
 
                 //Restart the timer
                 startTimer = std::chrono::high_resolution_clock::now();
@@ -1136,7 +1136,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
             dataSocket_->Receive(segment);
 
             //If the segment is not corrupt
-            if (segment.CalculateChecksum(0) == 0xff)
+            if (segment.CalculateChecksum(0) == 0x0000)
             {
                 //If the segment is an ack segment
                 if (segment.GetAckFlag())
@@ -1413,7 +1413,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
             DevRTT_ = (1 - BETA)*DevRTT_ + BETA * fabs(timermiliSeconds.count() - EstimatedRTT_);
 
             //Recalculate the Timeout value
-            TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
+            TimeoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
 
             //Mark the start time of the timer
             startTimer = std::chrono::high_resolution_clock::now();
@@ -1542,7 +1542,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         currentTimer - startTimer;
 
                     //If a timeout has occured, or three duplicate acks arrived
-                    if (timermiliSeconds.count() >= TimoutInterval_ || numberOfDuplicateAcks >= 3)
+                    if (timermiliSeconds.count() >= TimeoutInterval_ || numberOfDuplicateAcks >= 3)
                     {
                         //Make the temp position start at the base position
                         size_t tempPosition = sendBasePosition;
@@ -1591,7 +1591,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                             DevRTT_ = (1 - BETA)*DevRTT_ + BETA * fabs(timermiliSeconds.count() - EstimatedRTT_);
 
                             //Recalculate the Timeout value
-                            TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
+                            TimeoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
                         }
 
                         else
@@ -1652,7 +1652,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         dataSocket_->Receive(AckSegment);
 
                         //If the segment is not corrupt
-                        if (AckSegment.CalculateChecksum(0) == 0xff)
+                        if (AckSegment.CalculateChecksum(0) == 0x0000)
                         {
                             currentClientRecvWindowSize = AckSegment.GetReceiveWindow();                        
 
@@ -1771,7 +1771,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         DevRTT_ = (1 - BETA)*DevRTT_ + BETA * fabs(timermiliSeconds.count() - EstimatedRTT_);
 
                         //Recalculate the Timeout value
-                        TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
+                        TimeoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
 
                         //Mark the start time of the timer
                         startTimer = std::chrono::high_resolution_clock::now();
@@ -1788,7 +1788,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         currentTimer - startTimer;
 
                     //If a timeout has occured
-                    if (timermiliSeconds.count() >= TimoutInterval_)
+                    if (timermiliSeconds.count() >= TimeoutInterval_)
                     {
                         //Make a fin segment
                         Segment finSegment(MAX_EMPTY_SEGMENT_LEN, dataPort_, clientPort, startingServerSequenceNumber + numberOfUnackedBytes + 2,
@@ -1805,7 +1805,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         DevRTT_ = (1 - BETA)*DevRTT_ + BETA * fabs(timermiliSeconds.count() - EstimatedRTT_);
 
                         //Recalculate the Timeout value
-                        TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
+                        TimeoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
 
                         //Set the starting value of the timer
                         startTimer = std::chrono::high_resolution_clock::now();
@@ -1821,7 +1821,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         dataSocket_->Receive(segment);
 
                         //If the segment is not corrupt
-                        if (segment.CalculateChecksum(0) == 0xff)
+                        if (segment.CalculateChecksum(0) == 0x0000)
                         {
                             //If the segment has an ack for the fin segment
                             if (segment.GetAckFlag() && segment.GetAckNumber() == startingServerSequenceNumber + numberOfUnackedBytes + 3)
