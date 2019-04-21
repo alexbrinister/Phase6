@@ -102,8 +102,7 @@ namespace socksahoy
             * \details Wrapper around the recvfrom() function.
             * \param dest_segment The segment to populate with received data.
             */
-            template <std::size_t Size>
-            void Receive(Segment<Size>& dest_segment)
+            void Receive(Segment& dest_segment)
             {
                 //Checks for errors and tracks the actual number of bytes received
                 int numBytes = 0;
@@ -113,8 +112,8 @@ namespace socksahoy
                     // Receive a segment of data from the base_SocketTCP and store the address
                     // of the sender so that we can send segments back to them.
                     numBytes = recvfrom(baseSock_,
-                        dest_segment.Getsegment(),
-                        Size,
+                        dest_segment.GetSegment(),
+                        dest_segment.vectorSize_,
                         0, (SockAddr*)&remoteAddr_,
                         &remoteAddrLen);
 
@@ -137,8 +136,7 @@ namespace socksahoy
             * \param sendBitErrorPercent Percent of data segments to corrupt.
             * \param recvsegmentLoss Percent of data segments that will be lost.
             */
-            template <std::size_t Size>
-            void Send(Segment<Size>& segment,
+            void Send(Segment& segment,
                 const std::string& destAddr,
                 unsigned int destPort,
                 int sendBitErrorPercent,
@@ -176,8 +174,8 @@ namespace socksahoy
                     {
                         //Send the segment to the specified address
                         numBytes = sendto(baseSock_,
-                            segment.Getsegment(),
-                            segment.GetsegmentSize() + segment_HEADER_LEN,
+                            segment.GetSegment(),
+                            segment.vectorSize_,
                             0, addr_->ai_addr, addr_->ai_addrlen);
                     }
                 }
@@ -187,8 +185,8 @@ namespace socksahoy
                 {
                     //Send the segment to the specified address
                     numBytes = sendto(baseSock_,
-                        segment.Getsegment(),
-                        segment.GetsegmentSize() + segment_HEADER_LEN,
+                        segment.GetSegment(),
+                        segment.vectorSize_,
                         0, addr_->ai_addr, addr_->ai_addrlen);
                 }
 
@@ -246,9 +244,6 @@ namespace socksahoy
 
             /// The port this SocketTCP connects/binds to
             unsigned int port_;
-
-            /// The sequence number of the next expected segment on the recieve side.
-            int NextExpectedsegment_;
 
             /**
             * \brief Helper function to get address info for remote machine.

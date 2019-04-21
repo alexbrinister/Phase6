@@ -35,7 +35,11 @@ namespace socksahoy
             /**
             * \brief UDP Server destructor.
             */
-            ~UdpServerTCP() {}
+            ~UdpServerTCP() 
+            {
+                delete connSocket_;
+                delete dataSocket_;
+            }
 
             /**
             * \brief Function that the client calls to connect to and then communicate with a server.
@@ -70,23 +74,23 @@ namespace socksahoy
                 bool ignoreLoss);
 
         private:
-            /// Port the server sending/recieving data on
-            unsigned int dataPort_;
-
-            /// Internal TCP data socket
-            SocketTCP dataSocket_;
-
             /// Port the server is listening for connection requests on
             unsigned int connPort_;
 
             /// Internal TCP connection socket
-            SocketTCP connSocket_;
+            SocketTCP * connSocket_;
+
+            /// Port the server sending/recieving data on
+            unsigned int dataPort_;
+
+            /// Internal TCP data socket
+            SocketTCP * dataSocket_;
 
             int clientNumber_ = 1;
 
             // An ring buffer holding length of all the segments in the send window, 
             // in order.
-            std::vector<int> sendWindowSegmentLength_;
+            std::vector<size_t> sendWindowSegmentLength_;
 
             //An ring buffer holding all unacked bytes.
             std::vector<char> sendWindow_;
@@ -106,7 +110,7 @@ namespace socksahoy
             //The current timeout interval
             float_t TimoutInterval_ = EstimatedRTT_ + 4 * DevRTT_;
 
-            int ssthresh = 11 * MAX_FULL_SEGMENT_LEN;
+            unsigned int ssthresh = 11 * MAX_FULL_SEGMENT_LEN;
 
             /**
             * \brief Helper function to check if a file exists.

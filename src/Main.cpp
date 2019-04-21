@@ -307,6 +307,11 @@ int main(int argc, char** argv)
             }
         }
 
+        int ErrorPercent = ackErrorPercent;
+        int LossPercent = ackLossPercent;
+
+        ErrorPercent = dataErrorPercent;
+        LossPercent = dataLossPercent;
 
         // Now, we run either the server or client
         if (modeFlag == 0) /* Server mode... */

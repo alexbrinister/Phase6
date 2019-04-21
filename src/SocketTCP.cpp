@@ -96,9 +96,6 @@ socksahoy::SocketTCP::SocketTCP(unsigned int port,
             throw std::runtime_error(std::strerror(errno));
         }
     }
-
-    NextExpectedPacket_ = 0;
-
 }
 
 socksahoy::SocketTCP::~SocketTCP()

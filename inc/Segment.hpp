@@ -29,7 +29,7 @@ namespace socksahoy
     * \class Segment
     * \brief Struct representing a segment holding binary data.
     */
-    template <std::size_t Size> class Segment
+    class Segment
     {
         /// Segment is friends with SocketTCP so SocketTCP can use Segment members.
         friend class SocketTCP;
@@ -42,10 +42,12 @@ namespace socksahoy
         * \param sourcePortNumber the source port number of the segment
         * \param packets The total number of packets that will be sent.
         */
-        Segment(uint16_t sourcePortNumber, uint16_t destPortNumber, uint32_t sequenceNumber,
+        Segment(size_t size, uint16_t sourcePortNumber, uint16_t destPortNumber, uint32_t sequenceNumber,
                uint32_t ackNumber, bool urg, bool ack, bool psh, bool rst, bool syn, bool fin, 
                uint16_t rwnd, uint16_t urg_data_pointer, uint16_t options)
         {
+            vectorSize_ = size;
+            data_.resize(vectorSize_);
             sourcePortNumber_ = sourcePortNumber;
             destPortNumber_ = destPortNumber;
             sequenceNumber_ = sequenceNumber;
@@ -64,8 +66,10 @@ namespace socksahoy
             options_ = options;
         }
 
-        Segment()
+        Segment(size_t size)
         {
+            vectorSize_ = size;
+            data_.resize(vectorSize_);
             sourcePortNumber_ = 0;
             destPortNumber_ = 0;
             sequenceNumber_ = 0;
@@ -262,16 +266,6 @@ namespace socksahoy
         }
 
         /**
-        * \brief Gets and returns the current size of the data array.
-        * \details
-        * \return The current size of the data array
-        */
-        uint32_t GetDataArraySize()
-        {
-            return data_.max_size();
-        }
-
-        /**
         * \brief Calculates the checksum value of the segment, packet it into the data array, and returns it.
         * \param bitErrorPercent Percent of segments that will have bit errors.
         * \return The calculated checksum value.
@@ -349,8 +343,8 @@ namespace socksahoy
         */
         bool AddByte(char byte)
         {
-            //If the packet not full, and not a ack packet?
-            if (dataLength_ < (GetMaxPacketSize() - SEGMENT_HEADER_LEN))
+            //If the segment not full?
+            if (dataLength_ < (vectorSize_ - SEGMENT_HEADER_LEN))
             {
                 //Add a byte to it
                 data_[dataLength_ + SEGMENT_HEADER_LEN] = byte;
@@ -359,7 +353,7 @@ namespace socksahoy
                 return true;
             }
 
-            //The packet must be full
+            //The segment must be full
             //Indicate that the add failed
             return false;
         }
@@ -397,12 +391,31 @@ namespace socksahoy
 
             // The flags are stored in the 14th byte
             data_[13] = 0x00;
-            data_[13] = (urg_ << 5) || data_[13];
-            data_[13] = (ack_ << 4) || data_[13];
-            data_[13] = (psh_ << 3) || data_[13];
-            data_[13] = (rst_ << 2) || data_[13];
-            data_[13] = (syn_ << 1) || data_[13];
-            data_[13] = (fin_ << 0) || data_[13];
+
+            if (fin_)
+            {
+                data_[13] = data_[13] | 0b00000001;
+            }
+            if (syn_)
+            {
+                data_[13] = data_[13] | 0b00000010;
+            }
+            if (rst_)
+            {
+                data_[13] = data_[13] | 0b00000100;
+            }
+            if (psh_)
+            {
+                data_[13] = data_[13] | 0b00001000;
+            }
+            if (ack_)
+            {
+                data_[13] = data_[13] | 0b00010000;
+            }
+            if (urg_)
+            {
+                data_[13] = data_[13] | 0b00100000;
+            }
 
             // The receive window is stored in the 15th and 16th bytes
             data_[14] = (rwnd_ & 0xFF00) >> 8;
@@ -455,12 +468,30 @@ namespace socksahoy
                 headerLength_ = data_[12];
 
                 // The flags are stored in the 14th byte
-                urg_ = (data_[13] >> 5) & 0x01;
-                ack_ = (data_[13] >> 4) & 0x01;
-                psh_ = (data_[13] >> 3) & 0x01;
-                rst_ = (data_[13] >> 2) & 0x01;
-                syn_ = (data_[13] >> 1) & 0x01;
-                fin_ = data_[13] & 0x01;
+                if (((data_[13] >> 5) & 0x01) == 1)
+                {
+                    urg_ = true;
+                }
+                if (((data_[13] >> 4) & 0x01) == 1)
+                {
+                    ack_ = true;
+                }
+                if (((data_[13] >> 3) & 0x01) == 1)
+                {
+                    psh_ = true;
+                }
+                if (((data_[13] >> 2) & 0x01) == 1)
+                {
+                    rst_ = true;
+                }
+                if (((data_[13] >> 1) & 0x01) == 1)
+                {
+                    syn_ = true;
+                }
+                if ((data_[13] & 0x01) == 1)
+                {
+                    fin_ = true;
+                }
 
                 // The receive window is stored in the 15th and 16th bytes
                 rwnd_ = data_[14] << 8;
@@ -487,7 +518,7 @@ namespace socksahoy
         * \brief Returns a pointer to the begining of the byte array.
         * \return Pointer to the begining of the packet's byte array.
         */
-        char* GetPacket()
+        char* GetSegment()
         {
             // Return a pointer to the byte array so that it can be used
             return static_cast<char*>(&data_[0]);
@@ -509,7 +540,8 @@ namespace socksahoy
         uint16_t urgDataPointer_;     ///< A pointer to the location of the urgent data in the segment.
         uint16_t dataLength_;           ///< The length of the data, in bytes, in the segment.
         uint16_t options_;              ///< The options field.
-        std::array<char, Size> data_;   ///< The data array.
+        std::vector<char> data_;        ///< The data array.
+        size_t vectorSize_;
     };
 }
 
