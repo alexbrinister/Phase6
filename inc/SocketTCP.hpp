@@ -172,6 +172,8 @@ namespace socksahoy
                     //lost
                     if (sendSegmentLoss < random_number)
                     {
+                        std::cout << "Sending to address: " << destAddr << std::endl;
+                        printf("With port: %d\n", destPort);
                         //Send the segment to the specified address
                         numBytes = sendto(baseSock_,
                             segment.GetSegment(),
@@ -183,6 +185,8 @@ namespace socksahoy
                 //No loss, sendSegmentLoss <= 0
                 else
                 {
+                    std::cout << "Sending to address: " << destAddr << std::endl;
+                    printf("With port: %d\n", destPort);
                     //Send the segment to the specified address
                     numBytes = sendto(baseSock_,
                         segment.GetSegment(),
