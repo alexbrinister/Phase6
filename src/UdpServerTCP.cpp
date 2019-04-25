@@ -38,15 +38,15 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
 {
     printf("\n");
     
-    size_t currentClientRecvWindowSize = MAX_RECV_WINDOW_SIZE;
+    unsigned int currentClientRecvWindowSize = MAX_RECV_WINDOW_SIZE;
 
     uint32_t startingClientSequenceNumber = 0;
 
-    size_t maxClientSendWindowSize;
+    unsigned int maxClientSendWindowSize;
 
-    size_t currentClientSendWindowSize = MAX_SEGMENT_DATA_LEN;
+    unsigned int currentClientSendWindowSize = MAX_SEGMENT_DATA_LEN;
 
-    size_t currentServerRecvWindowSize;
+    unsigned int currentServerRecvWindowSize;
 
     uint32_t startingServerSequenceNumber;
 
@@ -54,19 +54,17 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
 
     int numberOfDuplicateAcks = 0;
 
-    size_t numberOfBytesInRecieveWindow = 0;
+    unsigned int numberOfBytesInRecieveWindow = 0;
 
     uint32_t nextSendAckNumber = 0;
 
-    bool sendAck = false;
+    unsigned int numberOfSegmentsInWindow = 0;
 
-    size_t numberOfSegmentsInWindow = 0;
+    unsigned int numberOfAckedBytes = 0;
 
-    size_t numberOfAckedBytes = 0;
+    unsigned int numberOfUnackedBytes = 0;
 
-    size_t numberOfUnackedBytes = 0;
-
-    size_t tempSendWindowSize = 0;
+    unsigned int tempSendWindowSize = 0;
 
     bool recievedFin = false;
 
@@ -78,22 +76,19 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
     auto finishTransfer = std::chrono::high_resolution_clock::now();
 
     //The next position in the send ring buffer to add a byte to
-    size_t sendNextPosition = 0;
+    unsigned int sendNextPosition = 0;
 
     //The position in the send buffer to remove a byte from
-    size_t sendBasePosition = 0;
+    unsigned int sendBasePosition = 0;
     
     //The next position in the send ring buffer to add a byte to
-    size_t sendSegmentNextPosition = 0;
-
-    //The position in the send buffer to remove a byte from
-    size_t sendSegmentBasePosition = 0;
+    unsigned int sendSegmentNextPosition = 0;
 
     //The next position in the recv ring buffer to add a byte to
-    size_t recvNextPosition = 0;
+    unsigned int recvNextPosition = 0;
 
     //The temporary next position in the recv ring buffer, for out of order segments
-    size_t recvTempNextPosition = 0;
+    unsigned int recvTempNextPosition = 0;
 
     //Connection set up section
 
@@ -253,14 +248,14 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
         startTransfer = std::chrono::high_resolution_clock::now();
 
         // Loop until all segments are sent and acked
-        while (numberOfAckedBytes < (size_t)fileSize)
+        while (numberOfAckedBytes < (unsigned int)fileSize)
         {
             //The ring buffer isn't full and the last packet hasn't been sent.
             if ((numberOfUnackedBytes < currentClientSendWindowSize)
-                    && (numberOfAckedBytes < (size_t)fileSize))
+                    && (numberOfAckedBytes < (unsigned int)fileSize))
             {
                 //The length of the segment that will be sent
-                size_t segmentLength;
+                unsigned int segmentLength;
 
                 //If the segment won't fit in the send buffer
                 if (numberOfUnackedBytes + MAX_SEGMENT_DATA_LEN > currentClientSendWindowSize)
@@ -278,18 +273,14 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 if (segmentLength > currentServerRecvWindowSize)
                 {
                     segmentLength = currentServerRecvWindowSize;
+                    currentServerRecvWindowSize = 0;
                 }
 
                 if (segmentLength > 0)
                 {
                     // Make a segment.
                     Segment segment(segmentLength + SEGMENT_HEADER_LEN, dataPort_, destPort, startingClientSequenceNumber + numberOfUnackedBytes + numberOfAckedBytes + 1,
-                        nextSendAckNumber, false, sendAck, false, false, false, false, currentClientRecvWindowSize, 0, 0);
-
-                    if (sendAck)
-                    {
-                        sendAck = false;
-                    }
+                        nextSendAckNumber, false, true, false, false, false, false, currentClientRecvWindowSize, 0, 0);
 
                     for (;;)
                     {
@@ -360,16 +351,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                     //Add the length of the segment to the second send buffer
                     sendWindowSegmentLength_[sendSegmentNextPosition] = segmentLength;
 
-                    //If we are at, or past, the end of the ring buffer
-                    if (sendSegmentNextPosition >= numberOfSegmentsInWindow - 1)
-                    {
-                        //Reset it back to the beginning
-                        sendSegmentNextPosition = 0;
-                    }
-                    else
-                    {
-                        sendSegmentNextPosition++;
-                    }
+                    sendSegmentNextPosition++;
 
                     //Increase the number of segments in flight
                     numberOfSegmentsInWindow++;
@@ -386,9 +368,9 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
             if (timermiliSeconds.count() >= TimeoutInterval_ || numberOfDuplicateAcks >= 3)
             {
                 //Make the temp position start at the base position
-                size_t tempPosition = sendBasePosition;
+                unsigned int tempPosition = sendBasePosition;
 
-                size_t segmentLength = sendWindowSegmentLength_[sendSegmentBasePosition];
+                unsigned int segmentLength = sendWindowSegmentLength_[0];
 
                 //Make a temporary buffer to hold the segment's data
                 std::vector<char> tempbuffer;
@@ -396,15 +378,10 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
 
                 //Remake the segment
                 Segment resendSegment(segmentLength + SEGMENT_HEADER_LEN, dataPort_, destPort, startingClientSequenceNumber + numberOfAckedBytes + 1,
-                    nextSendAckNumber, false, sendAck, false, false, false, false, currentClientRecvWindowSize, 0, 0);
-
-                if (sendAck)
-                {
-                    sendAck = false;
-                }
+                    nextSendAckNumber, false, true, false, false, false, false, currentClientRecvWindowSize, 0, 0);
 
                 //Populate the segment with all of it's bytes
-                for(size_t i = 0; i < segmentLength; i++)
+                for(unsigned int i = 0; i < segmentLength; i++)
                 {
                     //Get the byte from the send window
                     byte = sendWindow_[tempPosition];
@@ -445,12 +422,6 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                     numberOfDuplicateAcks = 0;
                 }
 
-                //Move the segment length back to the beginning of the ring buffer
-                sendWindowSegmentLength_[0] = sendWindowSegmentLength_[sendSegmentBasePosition];
-
-                //The segment length base pointer gets reset back to the beginning of the ring buffer
-                sendSegmentBasePosition = 0;
-
                 //The segment length next pointer points to just after the base pointer
                 sendSegmentNextPosition = 1;
 
@@ -459,7 +430,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 sendWindowSegmentLength_.resize(numberOfSegmentsInWindow);
 
                 //Move the bytes from the tempbuffer to the beginning of the ring buffer
-                for (size_t i = 0; i < segmentLength; i++)
+                for (unsigned int i = 0; i < segmentLength; i++)
                 {
                     sendWindow_[i] = tempbuffer[i];
                 }
@@ -541,44 +512,52 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         if (AckSegment.GetAckNumber() != duplicateAckSequenceNumber)
                         {
                             printf("It's a new ack segment\n");
-                            //Get the length of the acked segment
-                            size_t segmentLength = sendWindowSegmentLength_[sendSegmentBasePosition];
+
+                            int tempNumberOfAckedBytes = AckSegment.GetAckNumber() - duplicateAckSequenceNumber;
 
                             //Increase the number of acked bytes
-                            numberOfAckedBytes += segmentLength;
+                            numberOfAckedBytes += tempNumberOfAckedBytes;
 
                             //Decrease the number of unacked bytes in the window
-                            numberOfUnackedBytes -= segmentLength;
+                            numberOfUnackedBytes -= tempNumberOfAckedBytes;
 
-                            //Decrease the number of segments in the window
-                            numberOfSegmentsInWindow--;
-
+                            unsigned int numberOfSegmentsAcked = 0;
+                                                       
                             //Move the base position
 
                             //If the move would go beyond the end of the ring buffer
-                            if (sendBasePosition + segmentLength > currentClientSendWindowSize-1)
+                            if (sendBasePosition + tempNumberOfAckedBytes > currentClientSendWindowSize - 1)
                             {
-                                sendBasePosition = currentClientSendWindowSize - (1 + sendBasePosition + segmentLength);
+                                sendBasePosition = currentClientSendWindowSize - (1 + sendBasePosition + tempNumberOfAckedBytes);
                             }
 
                             //Normal move
                             else
                             {
-                                sendBasePosition += segmentLength;
+                                sendBasePosition += tempNumberOfAckedBytes;
                             }
 
-                            //Move the base pointer of the second ring buffer
+                            //Get the number of segments that were acked
+                            while (tempNumberOfAckedBytes > 0)
+                            {
+                                tempNumberOfAckedBytes -= sendWindowSegmentLength_[numberOfSegmentsAcked];
+                                numberOfSegmentsAcked++;
+                            }
 
-                            //If we are at, or past, the end of the ring buffer
-                            if (sendSegmentBasePosition >= numberOfSegmentsInWindow - 1)
+                            //Move the entries and next pointer of the second ring buffer
+
+                            //Move the stored segment lengths back to the begining of the buffer
+                            for (unsigned int i = 0; i + numberOfSegmentsAcked < numberOfSegmentsInWindow; i++)
                             {
-                                //Reset it back to the beginning
-                                sendSegmentBasePosition = 0;
+                                sendWindowSegmentLength_[i] = sendWindowSegmentLength_[i + numberOfAckedBytes];
                             }
-                            else
-                            {
-                                sendSegmentBasePosition++;
-                            }
+
+                            sendSegmentNextPosition -= numberOfSegmentsAcked;
+
+                            //Decrease the number of segments in the window
+                            numberOfSegmentsInWindow -= numberOfSegmentsAcked;
+
+                            sendWindowSegmentLength_.resize(numberOfSegmentsInWindow);
 
                             //If the window size is currently smaller than the max window size
                             if (currentClientSendWindowSize < maxClientSendWindowSize)
@@ -637,7 +616,6 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                             printf("It's a fin segment\n");
                             //Send an ack in the next data packet
                             nextSendAckNumber = AckSegment.GetSequenceNumber() + 1;
-                            sendAck = true;
 
                             recievedFin = true;
 
@@ -652,7 +630,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         {
                             printf("It's data is in order\n");
                             //Extract the data from the segment and add it to the recieve window
-                            for (size_t i = 0; i < AckSegment.GetDataLength(); i++)
+                            for (unsigned int i = 0; i < AckSegment.GetDataLength(); i++)
                             {
                                 //Add a byte of data to the recieve window
                                 recvWindow_[recvNextPosition] = AckSegment.GetData()[i];
@@ -685,7 +663,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                             recvTempNextPosition = recvNextPosition + AckSegment.GetSequenceNumber() - nextSendAckNumber;
 
                             //Extract the data from the segment and add it to the recieve window
-                            for (size_t i = 0; i < AckSegment.GetDataLength(); i++)
+                            for (unsigned int i = 0; i < AckSegment.GetDataLength(); i++)
                             {
                                 //Add a byte of data to the recieve window
                                 recvWindow_[recvTempNextPosition] = AckSegment.GetData()[i];
@@ -709,8 +687,8 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                             }
                         }
 
-                        //If the recieve buffer is full
-                        if (currentClientRecvWindowSize == 0)
+                        //If the recieve buffer is full and there are no holes
+                        if (currentClientRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition)
                         {
                             //Write the data in the recieve window to the file
                             outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
@@ -722,13 +700,6 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                             recvNextPosition = 0;
                         }
                     }
-                }
-
-                //If a fin segment hasn't been recieved from the server
-                if (!recievedFin)
-                {
-                    //Send an ack with the next data packet
-                    sendAck = true;
                 }
 
                 std::chrono::duration<float, std::milli> timermiliSeconds =
@@ -755,13 +726,13 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
 
         inputFile.close();
 
-        size_t finSequenceNumber = numberOfAckedBytes + 1;
+        unsigned int finSequenceNumber = numberOfAckedBytes + 1;
 
         bool finAcked = false;
 
         //Make fin segment
         Segment finSegment(MAX_EMPTY_SEGMENT_LEN, dataPort_, destPort, finSequenceNumber,
-            nextSendAckNumber, false, sendAck, false, false, false, true, currentClientRecvWindowSize, 0, 0);
+            nextSendAckNumber, false, true, false, false, false, true, currentClientRecvWindowSize, 0, 0);
 
         //Send the fin segment to the server
         dataSocket_->Send(finSegment, destAddr,
@@ -836,7 +807,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         {
                             printf("It's data is in order\n");
                             //Extract the data from the segment and add it to the recieve window
-                            for (size_t i = 0; i < segment.GetDataLength(); i++)
+                            for (unsigned int i = 0; i < segment.GetDataLength(); i++)
                             {
                                 //Add a byte of data to the recieve window
                                 recvWindow_[recvNextPosition] = segment.GetData()[i];
@@ -869,7 +840,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                             recvTempNextPosition = recvNextPosition + segment.GetSequenceNumber() - nextSendAckNumber;
 
                             //Extract the data from the segment and add it to the recieve window
-                            for (size_t i = 0; i < segment.GetDataLength(); i++)
+                            for (unsigned int i = 0; i < segment.GetDataLength(); i++)
                             {
                                 //Add a byte of data to the recieve window
                                 recvWindow_[recvTempNextPosition] = segment.GetData()[i];
@@ -893,8 +864,8 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                             }
                         }
 
-                        //If the recieve buffer is full
-                        if (currentClientRecvWindowSize == 0)
+                        //If the recieve buffer is full and there are no holes.
+                        if (currentClientRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition)
                         {
                             //Write the data in the recieve window to the file
                             outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
@@ -1014,35 +985,35 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
 {
     printf("\n");
 
-    size_t currentServerRecvWindowSize = MAX_RECV_WINDOW_SIZE;
+    unsigned int currentServerRecvWindowSize = MAX_RECV_WINDOW_SIZE;
 
-    size_t startingServerSequenceNumber = 0;
+    unsigned int startingServerSequenceNumber = 0;
 
-    size_t maxServerSendWindowSize;
+    unsigned int maxServerSendWindowSize;
 
-    size_t currentServerSendWindowSize = MAX_SEGMENT_DATA_LEN;
+    unsigned int currentServerSendWindowSize = MAX_SEGMENT_DATA_LEN;
 
-    size_t currentClientRecvWindowSize;
+    unsigned int currentClientRecvWindowSize;
 
-    size_t startingClientSequenceNumber;
+    unsigned int startingClientSequenceNumber;
 
-    size_t duplicateAckSequenceNumber;
+    unsigned int duplicateAckSequenceNumber;
 
-    size_t numberOfDuplicateAcks = 0;
+    unsigned int numberOfDuplicateAcks = 0;
 
-    size_t numberOfBytesInRecieveWindow = 0;
+    unsigned int numberOfBytesInRecieveWindow = 0;
 
-    size_t nextSendAckNumber = 0;
+    unsigned int nextSendAckNumber = 0;
 
-    size_t numberOfSegmentsInWindow = 0;
+    unsigned int numberOfSegmentsInWindow = 0;
 
-    size_t numberOfAckedBytes = 0;
+    unsigned int numberOfAckedBytes = 0;
 
-    size_t numberOfUnackedBytes = 0;
+    unsigned int numberOfUnackedBytes = 0;
 
-    size_t tempSendWindowSize = 0;
+    unsigned int tempSendWindowSize = 0;
 
-    size_t clientPort = 0;
+    unsigned int clientPort = 0;
 
     bool finAcked = false;
 
@@ -1054,22 +1025,19 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
     auto finishTransfer = std::chrono::high_resolution_clock::now();
 
     //The next position in the send ring buffer to add a byte to
-    size_t sendNextPosition = 0;
+    unsigned int sendNextPosition = 0;
 
     //The position in the send buffer to remove a byte from
-    size_t sendBasePosition = 0;
+    unsigned int sendBasePosition = 0;
 
     //The next position in the send ring buffer to add a byte to
-    size_t sendSegmentNextPosition = 0;
-
-    //The position in the send buffer to remove a byte from
-    size_t sendSegmentBasePosition = 0;
+    unsigned int sendSegmentNextPosition = 0;
 
     //The next position in the recv ring buffer to add a byte to
-    size_t recvNextPosition = 0;
+    unsigned int recvNextPosition = 0;
 
     //The temporary next position in the recv ring buffer, for out of order segments
-    size_t recvTempNextPosition = 0;
+    unsigned int recvTempNextPosition = 0;
 
     bool recievedAck = true;
 
@@ -1262,15 +1230,15 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         printf("It's an ack\n");
                         printf("Ack number %d\n", segment.GetAckNumber());
                         //If the ack is for the fin segment
-                        if (numberOfAckedBytes >= (size_t)fileSize)
+                        if (numberOfAckedBytes >= (unsigned int)fileSize)
                         {
                             finAcked = true;
                         }
 
-                        else 
+                        else
                         {
                             //Get the length of the acked segment
-                            size_t segmentLength = sendWindowSegmentLength_[sendSegmentBasePosition];
+                            unsigned int segmentLength = sendWindowSegmentLength_[0];
 
                             //Increase the number of acked bytes
                             numberOfAckedBytes += segmentLength;
@@ -1323,7 +1291,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                 {
                     printf("It's data is in order\n");
                     //Extract the data from the segment and add it to the recieve window
-                    for (size_t i = 0; i < segment.GetDataLength(); i++)
+                    for (unsigned int i = 0; i < segment.GetDataLength(); i++)
                     {
                         //Add a byte of data to the recieve window
                         recvWindow_[recvNextPosition] = segment.GetData()[i];
@@ -1346,7 +1314,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                     }
 
                     numberOfBytesInRecieveWindow += segment.GetDataLength();
-                    currentClientRecvWindowSize -= segment.GetDataLength();
+                    currentServerRecvWindowSize -= segment.GetDataLength();
                 }
 
                 //If the data in the segment is out of order, but not data that's already been recieved
@@ -1356,7 +1324,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                     recvTempNextPosition = recvNextPosition + segment.GetSequenceNumber() - nextSendAckNumber;
 
                     //Extract the data from the segment and add it to the recieve window
-                    for (size_t i = 0; i < segment.GetDataLength(); i++)
+                    for (unsigned int i = 0; i < segment.GetDataLength(); i++)
                     {
                         //Add a byte of data to the recieve window
                         recvWindow_[recvTempNextPosition] = segment.GetData()[i];
@@ -1369,19 +1337,19 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                     {
                         nextSendAckNumber += recvNextPosition - recvTempNextPosition;
                         numberOfBytesInRecieveWindow += recvNextPosition - recvTempNextPosition;
-                        currentClientRecvWindowSize -= recvNextPosition - recvTempNextPosition;
+                        currentServerRecvWindowSize -= recvNextPosition - recvTempNextPosition;
                         recvNextPosition = recvTempNextPosition;
                     }
 
                     else
                     {
                         numberOfBytesInRecieveWindow += segment.GetDataLength();
-                        currentClientRecvWindowSize -= segment.GetDataLength();
+                        currentServerRecvWindowSize -= segment.GetDataLength();
                     }
                 }
 
-                //If the recieve buffer is full
-                if (currentServerRecvWindowSize == 0)
+                //If the recieve buffer is full and there are no holes
+                if (currentServerRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition)
                 {
                     //Write the data in the recieve window to the file
                     outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
@@ -1398,7 +1366,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
             }
 
             //If the transfer of the input file isn't complete, and we got an ack
-            if (numberOfAckedBytes < (size_t)fileSize && recievedAck == true)
+            if (numberOfAckedBytes < (unsigned int)fileSize && recievedAck == true)
             {
                 recievedAck = false;
 
@@ -1406,7 +1374,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                 if (numberOfDuplicateAcks == 0)
                 {
                     //The length of the segment that will be sent
-                    size_t segmentLength = segment.GetReceiveWindow();
+                    unsigned int segmentLength = segment.GetReceiveWindow();
 
                     if (segmentLength > MAX_SEGMENT_DATA_LEN)
                     {
@@ -1486,14 +1454,14 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                     //Make the temp position start at the base position
                     int tempPosition = sendBasePosition;
 
-                    size_t segmentLength = sendWindowSegmentLength_[sendSegmentBasePosition];
+                    unsigned int segmentLength = sendWindowSegmentLength_[0];
 
                     //Remake the segment
                     Segment resendSegment(segmentLength + SEGMENT_HEADER_LEN, dataPort_, clientPort, startingServerSequenceNumber + numberOfAckedBytes + 1,
                         nextSendAckNumber, false, true, false, false, false, false, currentServerRecvWindowSize, 0, 0);
 
                     //Populate the segment with all of it's bytes
-                    for (size_t i = 0; i < segmentLength; i++)
+                    for (unsigned int i = 0; i < segmentLength; i++)
                     {
                         //Get the byte from the send window
                         byte = sendWindow_[tempPosition];
@@ -1518,7 +1486,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
             else
             {
                 //If the file transfer is complete and the fin segment hasn't acked
-                if (numberOfAckedBytes >= (size_t)fileSize && !finAcked)
+                if (numberOfAckedBytes >= (unsigned int)fileSize && !finAcked)
                 {
                     //Make a fin ack segment
                     Segment finAckSegment(MAX_EMPTY_SEGMENT_LEN, dataPort_, clientPort, startingServerSequenceNumber + numberOfUnackedBytes + numberOfAckedBytes + 1,
@@ -1573,13 +1541,13 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
             while (true)
             {
                 //If the input file hasn't been fully transferred
-                if (numberOfAckedBytes < (size_t)fileSize)
+                if (numberOfAckedBytes < (unsigned int)fileSize)
                 {
                     //The ring buffer isn't full
                     if ((numberOfUnackedBytes < currentServerSendWindowSize))
                     {
                         //The length of the segment that will be sent
-                        size_t segmentLength;
+                        unsigned int segmentLength;
 
                         //If the segment won't fit in the send buffer
                         if (numberOfUnackedBytes + MAX_SEGMENT_DATA_LEN > currentServerSendWindowSize)
@@ -1597,6 +1565,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         if (segmentLength > currentClientRecvWindowSize)
                         {
                             segmentLength = currentClientRecvWindowSize;
+                            currentClientRecvWindowSize = 0;
                         }
 
                         if (segmentLength > 0)
@@ -1696,9 +1665,9 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                     if (timermiliSeconds.count() >= TimeoutInterval_ || numberOfDuplicateAcks >= 3)
                     {
                         //Make the temp position start at the base position
-                        size_t tempPosition = sendBasePosition;
+                        unsigned int tempPosition = sendBasePosition;
 
-                        size_t segmentLength = sendWindowSegmentLength_[sendSegmentBasePosition];
+                        unsigned int segmentLength = sendWindowSegmentLength_[0];
 
                         //Make a temporary buffer to hold the segment's data
                         std::vector<char> tempbuffer;
@@ -1709,7 +1678,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                             0, false, false, false, false, false, false, currentServerRecvWindowSize, 0, 0);
 
                         //Populate the segment with all of it's bytes
-                        for (size_t i = 0; i < segmentLength; i++)
+                        for (unsigned int i = 0; i < segmentLength; i++)
                         {
                             //Get the byte from the send window
                             byte = sendWindow_[tempPosition];
@@ -1750,21 +1719,15 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                             numberOfDuplicateAcks = 0;
                         }
 
-                        //Move the segment length back to the beginning of the ring buffer
-                        sendWindowSegmentLength_[0] = sendWindowSegmentLength_[sendSegmentBasePosition];
-
-                        //The segment length base pointer gets reset back to the beginning of the ring buffer
-                        sendSegmentBasePosition = 0;
-
                         //The segment length next pointer points to just after the base pointer
                         sendSegmentNextPosition = 1;
-
+                        
                         //The segment length buffer gets resized
                         numberOfSegmentsInWindow = 1;
                         sendWindowSegmentLength_.resize(numberOfSegmentsInWindow);
 
                         //Move the bytes from the tempbuffer to the beginning of the ring buffer
-                        for (size_t i = 0; i < segmentLength; i++)
+                        for (unsigned int i = 0; i < segmentLength; i++)
                         {
                             sendWindow_[i] = tempbuffer[i];
                         }
@@ -1823,46 +1786,53 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                                 {
                                     printf("It's an ack");
                                     printf("Ack number %d\n", AckSegment.GetAckNumber());
-                                    //Get the length of the acked segment
-                                    size_t segmentLength = sendWindowSegmentLength_[sendSegmentBasePosition];
+                                    printf("It's a new ack segment\n");
+
+                                    unsigned int tempNumberOfAckedBytes = AckSegment.GetAckNumber() - duplicateAckSequenceNumber;
 
                                     //Increase the number of acked bytes
-                                    numberOfAckedBytes += segmentLength;
+                                    numberOfAckedBytes += tempNumberOfAckedBytes;
 
                                     //Decrease the number of unacked bytes in the window
-                                    numberOfUnackedBytes -= segmentLength;
+                                    numberOfUnackedBytes -= tempNumberOfAckedBytes;
 
-                                    //Decrease the number of segments in the window
-                                    numberOfSegmentsInWindow--;
+                                    unsigned int numberOfSegmentsAcked = 0;
 
                                     //Move the base position
 
                                     //If the move would go beyond the end of the ring buffer
-                                    if (sendBasePosition + segmentLength > currentServerSendWindowSize - 1)
+                                    if (sendBasePosition + tempNumberOfAckedBytes > currentServerSendWindowSize - 1)
                                     {
-                                        sendBasePosition = currentServerSendWindowSize - (1 + sendBasePosition + segmentLength);
+                                        sendBasePosition = currentServerSendWindowSize - (1 + sendBasePosition + tempNumberOfAckedBytes);
                                     }
 
                                     //Normal move
                                     else
                                     {
-                                        printf("It's a duplicate ack");
-                                        printf("Ack number %d\n", AckSegment.GetAckNumber());
-                                        sendBasePosition += segmentLength;
+                                        sendBasePosition += tempNumberOfAckedBytes;
                                     }
 
-                                    //Move the base pointer of the second ring buffer
+                                    //Get the number of segments that were acked
+                                    while (tempNumberOfAckedBytes > 0)
+                                    {
+                                        tempNumberOfAckedBytes -= sendWindowSegmentLength_[numberOfSegmentsAcked];
+                                        numberOfSegmentsAcked++;
+                                    }
 
-                                    //If we are at, or past, the end of the ring buffer
-                                    if (sendSegmentBasePosition >= numberOfSegmentsInWindow - 1)
+                                    //Move the entries and next pointer of the second ring buffer
+
+                                    //Move the stored segment lengths back to the begining of the buffer
+                                    for (unsigned int i = 0; i + numberOfSegmentsAcked < numberOfSegmentsInWindow; i++)
                                     {
-                                        //Reset it back to the beginning
-                                        sendSegmentBasePosition = 0;
+                                        sendWindowSegmentLength_[i] = sendWindowSegmentLength_[i + numberOfAckedBytes];
                                     }
-                                    else
-                                    {
-                                        sendSegmentBasePosition++;
-                                    }
+
+                                    sendSegmentNextPosition -= numberOfSegmentsAcked;
+
+                                    //Decrease the number of segments in the window
+                                    numberOfSegmentsInWindow -= numberOfSegmentsAcked;
+
+                                    sendWindowSegmentLength_.resize(numberOfSegmentsInWindow);
 
                                     //If the window size is currently smaller than the max window size
                                     if (currentServerSendWindowSize < maxServerSendWindowSize)
@@ -1906,6 +1876,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                                 }
                                 else
                                 {
+                                    printf("It's a duplicate ack segment\n");
                                     //Increase the number of duplicates
                                     numberOfDuplicateAcks++;
                                 }
@@ -1913,7 +1884,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         }
 
                         //If the file transfer is complete
-                        if (numberOfAckedBytes > (size_t)fileSize)
+                        if (numberOfAckedBytes > (unsigned int)fileSize)
                         {
                             //Make a fin segment
                             Segment finSegment(MAX_EMPTY_SEGMENT_LEN, dataPort_, clientPort, startingServerSequenceNumber + numberOfUnackedBytes + numberOfAckedBytes + 1,
