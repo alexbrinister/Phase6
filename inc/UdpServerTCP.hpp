@@ -73,6 +73,23 @@ namespace socksahoy
                 bool ignoreLoss);
 
         private:
+
+            struct sendWindowByte
+            {
+                char byte;
+                uint32_t sequenceNumber;
+                uint32_t ackNumber;
+                bool urg;
+                bool ack;
+                bool psh;
+                bool rst;
+                bool syn;
+                bool fin;
+                uint16_t urgDataPointer; 
+                uint16_t dataLength;
+                uint16_t options;
+            };
+
             /// Port the server is listening for connection requests on
             unsigned int connPort_;
 
@@ -87,12 +104,8 @@ namespace socksahoy
 
             int clientNumber_ = 1;
 
-            // An ring buffer holding length of all the segments in the send window, 
-            // in order.
-            std::vector<size_t> sendWindowSegmentLength_;
-
             //An ring buffer holding all unacked bytes.
-            std::vector<char> sendWindow_;
+            std::vector<sendWindowByte> sendWindow_;
 
             //An ring buffer holding all recieved bytes.
             char recvWindow_[MAX_RECV_WINDOW_SIZE];
