@@ -54,17 +54,17 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
 
     int numberOfDuplicateAcks = 0;
 
-    unsigned int numberOfBytesInRecieveWindow = 0;
+    uint32_t numberOfBytesInRecieveWindow = 0;
 
     uint32_t nextSendAckNumber = 0;
 
     bool sendAck = true;
 
-    unsigned int numberOfAckedBytes = 0;
+    uint32_t numberOfAckedBytes = 0;
 
-    unsigned int numberOfUnackedBytes = 0;
+    uint32_t numberOfUnackedBytes = 0;
 
-    unsigned int tempSendWindowSize = 0;
+    uint32_t tempSendWindowSize = 0;
 
     bool recievedFin = false;
 
@@ -251,7 +251,8 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
         {
             //The ring buffer isn't full and the last packet hasn't been sent.
             if ((numberOfUnackedBytes < currentClientSendWindowSize)
-                    && (numberOfUnackedBytes < (unsigned int)fileSize))
+                    && (numberOfUnackedBytes < (unsigned int)fileSize) 
+                    && numberOfUnackedBytes < currentServerRecvWindowSize)
             {
                 //The length of the segment that will be sent
                 unsigned int segmentLength;
@@ -673,17 +674,19 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         }
 
                         //If the recieve buffer is full and there are no holes
-                        if (currentClientRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition)
+                        if (currentClientRecvWindowSize <= MAX_SEGMENT_DATA_LEN && recvNextPosition >= recvTempNextPosition)
                         {
                             //Write the data in the recieve window to the file
                             outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
+                            printf("Emptying the recv buffer\n");
 
                             //Reset the recieve window
-                            currentClientRecvWindowSize = numberOfBytesInRecieveWindow;
+                            currentClientRecvWindowSize = MAX_RECV_WINDOW_SIZE;
                             numberOfBytesInRecieveWindow = 0;
                             recvTempNextPosition = 0;
                             recvNextPosition = 0;
                         }
+                        printf("currentClientRecvWindowSize: %d\n", currentClientRecvWindowSize);
                     }
                 }
 
@@ -856,17 +859,19 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         }
 
                         //If the recieve buffer is full and there are no holes
-                        if (currentClientRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition)
+                        if (currentClientRecvWindowSize <= MAX_SEGMENT_DATA_LEN && recvNextPosition >= recvTempNextPosition)
                         {
                             //Write the data in the recieve window to the file
                             outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
+                            printf("Emptying the recv buffer\n");
 
                             //Reset the recieve window
-                            currentClientRecvWindowSize = numberOfBytesInRecieveWindow;
+                            currentClientRecvWindowSize = MAX_RECV_WINDOW_SIZE;
                             numberOfBytesInRecieveWindow = 0;
                             recvTempNextPosition = 0;
                             recvNextPosition = 0;
                         }
+                        printf("currentClientRecvWindowSize: %d\n", currentClientRecvWindowSize);
                     }
 
                     else
@@ -992,15 +997,15 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
 
     unsigned int numberOfDuplicateAcks = 0;
 
-    unsigned int numberOfBytesInRecieveWindow = 0;
+    uint32_t numberOfBytesInRecieveWindow = 0;
 
     unsigned int nextSendAckNumber = 0;
 
-    unsigned int numberOfAckedBytes = 0;
+    uint32_t numberOfAckedBytes = 0;
 
-    unsigned int numberOfUnackedBytes = 0;
+    uint32_t numberOfUnackedBytes = 0;
 
-    unsigned int tempSendWindowSize = 0;
+    uint32_t tempSendWindowSize = 0;
 
     unsigned int clientPort = 0;
 
@@ -1321,7 +1326,6 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
 
                     numberOfBytesInRecieveWindow += segment.GetDataLength();
                     currentServerRecvWindowSize -= segment.GetDataLength();
-                    printf("currentServerRecvWindowSize: %d\n", currentServerRecvWindowSize);
                 }
 
                 //If the data in the segment is out of order, but not data that's already been recieved
@@ -1358,17 +1362,19 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                 }
 
                 //If the recieve buffer is full and there are no holes
-                if (currentServerRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition)
+                if (currentServerRecvWindowSize <= MAX_SEGMENT_DATA_LEN && recvNextPosition >= recvTempNextPosition)
                 {
                     //Write the data in the recieve window to the file
                     outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
+                    printf("Emptying the recv buffer\n");
 
                     //Reset the recieve window
-                    currentServerRecvWindowSize = numberOfBytesInRecieveWindow;
+                    currentServerRecvWindowSize = MAX_RECV_WINDOW_SIZE;
                     numberOfBytesInRecieveWindow = 0;
                     recvTempNextPosition = 0;
                     recvNextPosition = 0;
                 }
+                printf("currentServerRecvWindowSize: %d\n", currentServerRecvWindowSize);
                 
                 printf("\n");
 
