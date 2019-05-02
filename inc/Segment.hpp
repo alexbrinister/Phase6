@@ -367,24 +367,24 @@ namespace socksahoy
         void Serialize()
         {
             // The source port number is stored in the first 2 bytes of the data array
-            data_[0] = (sourcePortNumber_ & 0xFF00) >> 8;
+            data_[0] = (sourcePortNumber_ >> 8) & 0xFF;
             data_[1] = sourcePortNumber_ & 0xFF;
 
             // The destination port number is stored in the 3rd and 4th bytes of the data array
-            data_[2] = (destPortNumber_ & 0xFF00) >> 8;
+            data_[2] = (destPortNumber_ >> 8) & 0xFF;
             data_[3] = destPortNumber_ & 0xFF;
 
             // The sequence number is stored in the 5th, 6th, 7th, and 8th bytes of the data array
-            data_[4] = (sequenceNumber_ & 0xFF000000) >> 24;
-            data_[5] = (sequenceNumber_ & 0x00FF0000) >> 16;
-            data_[6] = (sequenceNumber_ & 0x0000FF00) >> 8;
-            data_[7] = (sequenceNumber_ & 0x000000FF);
+            data_[4] = (sequenceNumber_ >> 24) & 0xFF;
+            data_[5] = (sequenceNumber_ >> 16) & 0xFF;
+            data_[6] = (sequenceNumber_ >> 8) & 0xFF;
+            data_[7] = sequenceNumber_ & 0xFF;
 
             // The acknowledgement number is stored in the 9th, 10th, 11th, and 12th bytes of the data array
-            data_[8] = (ackNumber_ & 0xFF000000) >> 24;
-            data_[9] = (ackNumber_ & 0x00FF0000) >> 16;
-            data_[10] = (ackNumber_ & 0x0000FF00) >> 8;
-            data_[11] = (ackNumber_ & 0x000000FF);
+            data_[8] = (ackNumber_ >> 24) & 0xFF;
+            data_[9] = (ackNumber_ >> 16) & 0xFF;
+            data_[10] = (ackNumber_ >> 8) & 0xFF;
+            data_[11] = ackNumber_ & 0xFF;
 
             // The header length is the 13th byte
             data_[12] = headerLength_;
@@ -418,7 +418,7 @@ namespace socksahoy
             }
 
             // The receive window is stored in the 15th and 16th bytes
-            data_[14] = (rwnd_ & 0xFF00) >> 8;
+            data_[14] = (rwnd_ >> 8) & 0xFF;
             data_[15] = rwnd_ & 0xFF;
 
             // The checksum value is stored in the 17th and 18th bytes, 
@@ -427,15 +427,15 @@ namespace socksahoy
             data_[17] = 0;
 
             // The urgent data pointer is stored in the 19th and 20th bytes
-            data_[18] = (urgDataPointer_ & 0xFF00) >> 8;
+            data_[18] = (urgDataPointer_ >> 8) & 0xFF;
             data_[19] = urgDataPointer_ & 0xFF;
 
             // The length of the data is stored in the 21st and 22nd bytes
-            data_[20] = (dataLength_ & 0xFF00) >> 8;
+            data_[20] = (dataLength_ >> 8) & 0xFF;
             data_[21] = dataLength_ & 0xFF;
 
             // The options field is stored in the 23rd and 24th bytes
-            data_[22] = (options_ & 0xFF00) >> 8;
+            data_[22] = (options_ >> 8) & 0xFF;
             data_[23] = options_ & 0xFF;
         }
 
@@ -446,24 +446,24 @@ namespace socksahoy
             Deserialize()
             {
                 // The source port number is stored in the first 2 bytes of the data array
-                sourcePortNumber_ = data_[0] << 8;
-                sourcePortNumber_ |= (uint8_t)data_[1];
+                sourcePortNumber_ = (uint8_t)data_[0];
+                sourcePortNumber_ = (sourcePortNumber_ << 8) | ((uint8_t)data_[1]);
 
                 // The destination port number is stored in the 3rd and 4th bytes of the data array
-                destPortNumber_ = data_[2] << 8;
-                destPortNumber_ |= (uint8_t)data_[3];
+                destPortNumber_ = (uint8_t)data_[2];
+                destPortNumber_ = (destPortNumber_ << 8) | ((uint8_t)data_[3]);
 
                 // The sequence number is stored in the 5th, 6th, 7th, and 8th bytes of the data array
-                sequenceNumber_ = data_[4] << 24;
-                sequenceNumber_ |= data_[5] << 16;
-                sequenceNumber_ |= data_[6] << 8;
-                sequenceNumber_ |= (uint8_t)data_[7];
+                sequenceNumber_ = (uint8_t)data_[4];
+                sequenceNumber_ = (sequenceNumber_ << 8) | ((uint8_t)data_[5]);
+                sequenceNumber_ = (sequenceNumber_ << 8) | ((uint8_t)data_[6]);
+                sequenceNumber_ = (sequenceNumber_ << 8) | ((uint8_t)data_[7]);
 
                 // The acknowledgement number is stored in the 9th, 10th, 11th, and 12th bytes of the data array
-                ackNumber_ = data_[8] << 24;
-                ackNumber_ |= data_[9] << 16;
-                ackNumber_ |= data_[10] << 8;
-                ackNumber_ |= (uint8_t)data_[11];
+                ackNumber_ = (uint8_t)data_[8];
+                ackNumber_ = (ackNumber_ << 8) | ((uint8_t)data_[9]);
+                ackNumber_ = (ackNumber_ << 8) | ((uint8_t)data_[10]);
+                ackNumber_ = (ackNumber_ << 8) | ((uint8_t)data_[11]);
 
                 // The header length is the 13th byte
                 headerLength_ = data_[12];
@@ -473,46 +473,75 @@ namespace socksahoy
                 {
                     urg_ = true;
                 }
+                else
+                {
+                    urg_ = false;
+                }
+
                 if (((data_[13] >> 4) & 0x01) == 1)
                 {
                     ack_ = true;
                 }
+                else
+                {
+                    ack_ = false;
+                }
+
                 if (((data_[13] >> 3) & 0x01) == 1)
                 {
                     psh_ = true;
                 }
+                else
+                {
+                    psh_ = false;
+                }
+
                 if (((data_[13] >> 2) & 0x01) == 1)
                 {
                     rst_ = true;
                 }
+                else
+                {
+                    rst_ = false;
+                }
+
                 if (((data_[13] >> 1) & 0x01) == 1)
                 {
                     syn_ = true;
                 }
+                else
+                {
+                    syn_ = false;
+                }
+
                 if ((data_[13] & 0x01) == 1)
                 {
                     fin_ = true;
                 }
+                else
+                {
+                    fin_ = false;
+                }
 
                 // The receive window is stored in the 15th and 16th bytes
-                rwnd_ = data_[14] << 8;
-                rwnd_ |= (uint8_t)data_[15];
+                rwnd_ = (uint8_t)data_[14];
+                rwnd_ = (rwnd_ << 8) | ((uint8_t)data_[15]);
 
                 // The checksum is stored in the 17th and 18th bytes
-                checksum_ = data_[16] << 8;
-                checksum_ |= (uint8_t)data_[17];
+                checksum_ = (uint8_t)data_[16];
+                checksum_ = (checksum_ << 8) | ((uint8_t)data_[17]);
 
                 // The urgent data pointer is stored in the 19th and 20th bytes
-                urgDataPointer_ = data_[18] << 8;
-                urgDataPointer_ |= (uint8_t)data_[19];
+                urgDataPointer_ = (uint8_t)data_[18];
+                urgDataPointer_ = (urgDataPointer_ << 8) | ((uint8_t)data_[18]);
 
                 // The length of the data is stored in the 21st and 22nd bytes
-                dataLength_ = data_[20] << 8;
-                dataLength_ |= (uint8_t)data_[21];
+                dataLength_ = (uint8_t)data_[20];
+                dataLength_ = (dataLength_ << 8) | ((uint8_t)data_[21]);
 
                 // The options field is stored in the 23rd and 24th bytes
-                options_ = data_[22] << 8;
-                options_ |= (uint8_t)data_[23];
+                options_ = (uint8_t)data_[22];
+                options_ = (options_ << 8) | ((uint8_t)data_[23]);
 
                 vectorSize_ = headerLength_ + dataLength_;
 
