@@ -272,10 +272,9 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 }
 
                 //If the segment length is longer than what the server can recieve
-                if (segmentLength > currentServerRecvWindowSize)
+                if (segmentLength + numberOfUnackedBytes > currentServerRecvWindowSize)
                 {
-                    segmentLength = currentServerRecvWindowSize;
-                    currentServerRecvWindowSize = 0;
+                    segmentLength = currentServerRecvWindowSize - numberOfUnackedBytes;
                 }
 
                 if (segmentLength > 0)
@@ -479,6 +478,13 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 printf("Ack number %d\n", AckSegment.GetAckNumber());
                 printf("%d bytes long\n", AckSegment.GetDataLength());
 
+                //If a fin segment hasn't been recieved from the server
+                if (!recievedFin)
+                {
+                    //Send an ack in the next data packet
+                    sendAck = true;
+                }
+
                 //If the segment is not corrupt
                 if (AckSegment.CalculateChecksum(0) == 0x0000)
                 {
@@ -592,7 +598,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         //If the segment is a fin segment
                         if (AckSegment.GetFinFlag())
                         {
-                            printf("It's a fin segment\n");
+                            printf("It's a fin segment\n\n");
                             //Send an ack in the next data packet
                             nextSendAckNumber = AckSegment.GetSequenceNumber() + 1;
 
@@ -673,7 +679,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         }
 
                         //If the recieve buffer is full and there are no holes
-                        if (currentClientRecvWindowSize <= MAX_SEGMENT_DATA_LEN && recvNextPosition >= recvTempNextPosition)
+                        if (currentClientRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition)
                         {
                             //Write the data in the recieve window to the file
                             outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
@@ -685,8 +691,6 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                             recvTempNextPosition = 0;
                             recvNextPosition = 0;
                         }
-
-                        sendAck = true;
                         printf("currentClientRecvWindowSize: %d\n", currentClientRecvWindowSize);
                     }
                 }
@@ -772,7 +776,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         //If the segment is a fin segment
                         if (segment.GetFinFlag())
                         {
-                            printf("It's a fin segment");
+                            printf("It's a fin segment\n\n");
                             // Make an ackSegment.
                             Segment ackSegment(MAX_EMPTY_SEGMENT_LEN,dataPort_, destPort, 0,
                                 segment.GetSequenceNumber() + 1, false, true, false, false, false, false, currentClientRecvWindowSize, 0, 0);
@@ -860,7 +864,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         }
 
                         //If the recieve buffer is full and there are no holes
-                        if (currentClientRecvWindowSize <= MAX_SEGMENT_DATA_LEN && recvNextPosition >= recvTempNextPosition)
+                        if (currentClientRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition)
                         {
                             //Write the data in the recieve window to the file
                             outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
@@ -1276,7 +1280,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                 //If the segment is a fin segment
                 if (segment.GetFinFlag())
                 {
-                    printf("It's a fin\n");
+                    printf("It's a fin\n\n");
                     // Make an segment.
                     Segment ackSegment(MAX_EMPTY_SEGMENT_LEN, dataPort_, clientPort, 0,
                         segment.GetSequenceNumber() + 1, false, true, false, false, false, false, currentServerRecvWindowSize, 0, 0);
@@ -1364,7 +1368,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                 }
 
                 //If the recieve buffer is full and there are no holes
-                if (currentServerRecvWindowSize <= MAX_SEGMENT_DATA_LEN && recvNextPosition >= recvTempNextPosition)
+                if (currentServerRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition)
                 {
                     //Write the data in the recieve window to the file
                     outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
@@ -1501,7 +1505,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
 
                     //Remake the segment
                     Segment resendSegment(segmentLength + SEGMENT_HEADER_LEN, dataPort_, clientPort, sendWindow_[tempPosition].sequenceNumber,
-                        sendWindow_[tempPosition].ackNumber, sendWindow_[tempPosition].urg, sendWindow_[tempPosition].ack, 
+                        nextSendAckNumber, sendWindow_[tempPosition].urg, sendWindow_[tempPosition].ack,
                         sendWindow_[tempPosition].psh, sendWindow_[tempPosition].rst, sendWindow_[tempPosition].syn, 
                         sendWindow_[tempPosition].fin, currentServerRecvWindowSize, sendWindow_[tempPosition].urgDataPointer, sendWindow_[tempPosition].options);
 
@@ -1594,7 +1598,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                 if (numberOfAckedBytes < (unsigned int)fileSize)
                 {
                     //The ring buffer isn't full
-                    if ((numberOfUnackedBytes < currentServerSendWindowSize))
+                    if ((numberOfUnackedBytes < currentServerSendWindowSize) && numberOfUnackedBytes < currentClientRecvWindowSize)
                     {
                         //The length of the segment that will be sent
                         unsigned int segmentLength;
@@ -1612,10 +1616,9 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         }
 
                         //If the segment length is longer than what the client can recieve
-                        if (segmentLength > currentClientRecvWindowSize)
+                        if (segmentLength + numberOfUnackedBytes > currentClientRecvWindowSize)
                         {
-                            segmentLength = currentClientRecvWindowSize;
-                            currentClientRecvWindowSize = 0;
+                            segmentLength = currentClientRecvWindowSize - numberOfUnackedBytes;
                         }
 
                         if (segmentLength > 0)                            
