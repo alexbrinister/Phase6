@@ -280,12 +280,10 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                     Segment segment(segmentLength + SEGMENT_HEADER_LEN, dataPort_, destPort, sequenceNumber,
                         nextSendAckNumber, false, sendAck, false, false, false, false, currentClientRecvWindowSize, 0, 0);
 
-                    //If the buffer is empty
-                    if (numberOfUnackedBytes == 0)
-                    {
-                        //Mark the start time of the timer
-                        startTimer = std::chrono::high_resolution_clock::now();
-                    }
+                    //Mark the start time of the timer
+                    startTimer = std::chrono::high_resolution_clock::now();
+                    std::chrono::duration<float, std::milli> currentTime =
+                        startTransfer - startTimer;
 
                     numberOfUnackedBytes += segmentLength;
 
@@ -299,7 +297,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                             segment.AddByte(byte);
                             queuedByte = false;
                             //Add the byte to the back of the send window
-                            sendWindow_.push_back({ byte, sequenceNumber, false, sendAck, false, false, false, false, 0, segmentLength, 0 });
+                            sendWindow_.push_back({ byte, sequenceNumber, false, sendAck, false, false, false, false, 0, segmentLength, 0, currentTime.count() });
                         }
 
                         // Get a byte and try to put it into the packet.
@@ -314,7 +312,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                                 break;
                             }
                             //Add the byte to the back of the send window
-                            sendWindow_.push_back({ byte, sequenceNumber, false, sendAck, false, false, false, false, 0, segmentLength, 0 });
+                            sendWindow_.push_back({ byte, sequenceNumber, false, sendAck, false, false, false, false, 0, segmentLength, 0, currentTime.count() });
                         }
 
                         // If we can't get a byte, that means we got EOF; leave the
@@ -344,76 +342,68 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 }                
             }
 
-            // Get the current timer value in milliseconds
-            currentTimer = std::chrono::high_resolution_clock::now();
-
-            std::chrono::duration<float, std::milli> timermiliSeconds =
-                currentTimer - startTimer;
-
-            //If a timeout has occured, or three duplicate acks arrived
-            if (timermiliSeconds.count() >= TimeoutInterval_ || numberOfDuplicateAcks >= 3)
+            if (!sendWindow_.empty())
             {
-                printf("Timeout time: %f\n\n", TimeoutInterval_);
-                std::cout << "Send Window Number of Bytes: " << sendWindow_.size() << "\n";
+                // Get the current timer value in milliseconds
+                currentTimer = std::chrono::high_resolution_clock::now();
 
-                //Make a list iterator that starts at the begining of the send buffer
-                std::list<sendWindowByte>::iterator it = sendWindow_.begin();
-                
-                uint16_t segmentLength = it->dataLength;
+                std::chrono::duration<float, std::milli> currentTime =
+                    currentTimer - startTransfer ;
 
-                //Remake the segment
-                Segment resendSegment(segmentLength + SEGMENT_HEADER_LEN, dataPort_, destPort, it->sequenceNumber,
-                    nextSendAckNumber, it->urg, it->ack, it->psh,
-                    it->rst, it->syn, it->fin, currentClientRecvWindowSize,
-                    it->urgDataPointer, it->options);
+                printf("Current time: %f\n\n", currentTime.count() - sendWindow_.begin()->timeSent);
 
-                //Populate the segment with all of it's bytes
-                for(unsigned int i = 0; i < segmentLength; i++)
+                //If a timeout has occured, or three duplicate acks arrived
+                if (currentTime.count() - sendWindow_.begin()->timeSent >= TimeoutInterval_ || numberOfDuplicateAcks >= 3)
                 {
-                    //Get and add the byte it to the segment
-                    resendSegment.AddByte(it->byte);
+                    printf("Timeout time: %f\n\n", TimeoutInterval_);
+                    std::cout << "Send Window Number of Bytes: " << sendWindow_.size() << "\n";
 
-                    it++;
+                    //Make a list iterator that starts at the begining of the send buffer
+                    std::list<sendWindowByte>::iterator it = sendWindow_.begin();
+
+                    uint16_t segmentLength = it->dataLength;
+
+                    //Remake the segment
+                    Segment resendSegment(segmentLength + SEGMENT_HEADER_LEN, dataPort_, destPort, it->sequenceNumber,
+                        nextSendAckNumber, it->urg, it->ack, it->psh,
+                        it->rst, it->syn, it->fin, currentClientRecvWindowSize,
+                        it->urgDataPointer, it->options);
+
+                    //Populate the segment with all of it's bytes
+                    for (unsigned int i = 0; i < segmentLength; i++)
+                    {
+                        //Get and add the byte it to the segment
+                        resendSegment.AddByte(it->byte);
+
+                        it->timeSent = currentTime.count();
+
+                        it++;
+                    }
+
+                    //Only recalculate the timeout interval if a timeout occured
+                    if (numberOfDuplicateAcks > 3)
+                    {
+                        numberOfDuplicateAcks = 0;
+                    }
+
+                    //The slow start threashhold becomes half of the current client window size
+                    ssthresh = currentClientSendWindowSize / 2;
+
+                    //The client window size gets reset back to one full segment.
+                    currentClientSendWindowSize = MAX_SEGMENT_DATA_LEN;
+
+                    //Resend the segment
+                    dataSocket_->Send(resendSegment, destAddr, destPort,
+                        bitErrorPercent, segmentLoss);
+
+                    printf("Re-Sending data segment\n");
+                    printf("Segment number %d\n", resendSegment.GetSequenceNumber());
+                    if (resendSegment.GetAckFlag())
+                    {
+                        printf("Ack number %d\n", resendSegment.GetAckNumber());
+                    }
+                    printf("%d bytes long\n\n", resendSegment.GetDataLength());
                 }
-
-                //Only recalculate the timeout interval if a timeout occured
-                if (numberOfDuplicateAcks < 3) 
-                {
-                    //Recalculate the estimated RTT value 
-                    EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * timermiliSeconds.count());
-
-                    //Recalculate the RTT deviation value
-                    DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(timermiliSeconds.count() - EstimatedRTT_)));
-
-                    //Recalculate the Timeout value
-                    TimeoutInterval_ = EstimatedRTT_ + (4 * DevRTT_);
-                }
-
-                else
-                {
-                    numberOfDuplicateAcks = 0;
-                }
-                
-                //The slow start threashhold becomes half of the current client window size
-                ssthresh = currentClientSendWindowSize / 2;
-
-                //The client window size gets reset back to one full segment.
-                currentClientSendWindowSize = MAX_SEGMENT_DATA_LEN;
-
-                //Resend the segment
-                dataSocket_->Send(resendSegment, destAddr, destPort,
-                    bitErrorPercent, segmentLoss);
-
-                printf("Re-Sending data segment\n");
-                printf("Segment number %d\n", resendSegment.GetSequenceNumber());
-                if (resendSegment.GetAckFlag())
-                {
-                    printf("Ack number %d\n", resendSegment.GetAckNumber());
-                }
-                printf("%d bytes long\n\n", resendSegment.GetDataLength());
-
-                //Mark the start time of the timer
-                startTimer = std::chrono::high_resolution_clock::now();
             }
 
             //A packet has arrived
@@ -424,8 +414,10 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 // Get the current timer value in milliseconds
                 currentTimer = std::chrono::high_resolution_clock::now();
 
-                std::chrono::duration<float, std::milli> timermiliSeconds =
-                    currentTimer - startTimer;
+                std::chrono::duration<float, std::milli> currentTime =
+                    currentTimer - startTransfer ;
+
+                float_t RTTSample = currentTime.count() - sendWindow_.begin()->timeSent;
 
                 // Make a segment.
                 Segment AckSegment(MAX_FULL_SEGMENT_LEN);
@@ -659,10 +651,10 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 }
 
                 //Recalculate the estimated RTT value 
-                EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * timermiliSeconds.count());
+                EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * RTTSample);
 
                 //Recalculate the RTT deviation value
-                DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(timermiliSeconds.count() - EstimatedRTT_)));
+                DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(RTTSample - EstimatedRTT_)));
 
                 //Recalculate the Timeout value
                 TimeoutInterval_ = EstimatedRTT_ + (4 * DevRTT_);
@@ -1401,6 +1393,11 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                     Segment ackSegment(segmentLength + SEGMENT_HEADER_LEN, dataPort_, clientPort, sequenceNumber,
                         nextSendAckNumber, false, true, false, false, false, false, currentServerRecvWindowSize, 0, 0);
 
+                    //Mark the start time of the timer
+                    startTimer = std::chrono::high_resolution_clock::now();
+                    std::chrono::duration<float, std::milli> currentTime =
+                        startTransfer - startTimer;
+
                     //Populate the ack segment with new data from the file
                     for (;;)
                     {
@@ -1412,7 +1409,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                             ackSegment.AddByte(byte);
                             queuedByte = false;
                             //Add the byte to the back of the send window
-                            sendWindow_.push_back({ byte, sequenceNumber, false, true, false, false, false, false, 0, segmentLength, 0 });
+                            sendWindow_.push_back({ byte, sequenceNumber, false, true, false, false, false, false, 0, segmentLength, 0, currentTime.count()});
                         }
 
                         // Get a byte and try to put it into the packet.
@@ -1427,7 +1424,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                                 break;
                             }
                             //Add the byte to the back of the send window
-                            sendWindow_.push_back({ byte, sequenceNumber, false, true, false, false, false, false, 0, segmentLength, 0 });
+                            sendWindow_.push_back({ byte, sequenceNumber, false, true, false, false, false, false, 0, segmentLength, 0, currentTime.count()});
                         }
 
                         // If we can't get a byte, that means we got EOF; leave the
@@ -1529,18 +1526,6 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                     printf("%d bytes long\n\n", emptyAckSegment.GetDataLength());
                 }
             }
-
-            //Recalculate the estimated RTT value 
-            EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * timermiliSeconds.count());
-
-            //Recalculate the RTT deviation value
-            DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(timermiliSeconds.count() - EstimatedRTT_)));
-
-            //Recalculate the Timeout value
-            TimeoutInterval_ = EstimatedRTT_ + (4 * DevRTT_);
-
-            //Mark the start time of the timer
-            startTimer = std::chrono::high_resolution_clock::now();
             
             recievedAck = false;
         }
@@ -1590,12 +1575,10 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                             Segment segment(segmentLength + SEGMENT_HEADER_LEN, dataPort_, clientPort, sequenceNumber,
                                 0, false, false, false, false, false, false, currentServerRecvWindowSize, 0, 0);
 
-                            //If the buffer is empty
-                            if (numberOfUnackedBytes == 0)
-                            {
-                                //Mark the start time of the timer
-                                startTimer = std::chrono::high_resolution_clock::now();
-                            }
+                            //Mark the start time of the timer
+                            startTimer = std::chrono::high_resolution_clock::now();
+                            std::chrono::duration<float, std::milli> currentTime =
+                                startTransfer - startTimer;
 
                             for (;;)
                             {
@@ -1607,7 +1590,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                                     segment.AddByte(byte);
                                     queuedByte = false;
                                     //Add the byte to the back of the send window
-                                    sendWindow_.push_back({ byte, sequenceNumber, false, false, false, false, false, false, 0, segmentLength, 0 });
+                                    sendWindow_.push_back({ byte, sequenceNumber, false, false, false, false, false, false, 0, segmentLength, 0, currentTime.count() });
                                 }
 
                                 // Get a byte and try to put it into the packet.
@@ -1622,7 +1605,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                                         break;
                                     }
                                     //Add the byte to the back of the send window
-                                    sendWindow_.push_back({ byte, sequenceNumber, false, false, false, false, false, false, 0, segmentLength, 0 });
+                                    sendWindow_.push_back({ byte, sequenceNumber, false, false, false, false, false, false, 0, segmentLength, 0, currentTime.count() });
                                 }
 
                                 // If we can't get a byte, that means we got EOF; leave the
@@ -1647,70 +1630,63 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         }                        
                     }
 
-                    // Get the current timer value in milliseconds
-                    currentTimer = std::chrono::high_resolution_clock::now();
-
-                    std::chrono::duration<float, std::milli> timermiliSeconds =
-                        currentTimer - startTimer;
-
-                    //If a timeout has occured, or three duplicate acks arrived
-                    if (timermiliSeconds.count() >= TimeoutInterval_ || numberOfDuplicateAcks >= 3)
+                    if (!sendWindow_.empty())
                     {
-                        printf("Timeout time: %f\n\n", TimeoutInterval_);
-                        //Make a list iterator that starts at the begining of the send buffer
-                        std::list<sendWindowByte>::iterator it = sendWindow_.begin();
+                        // Get the current timer value in milliseconds
+                        currentTimer = std::chrono::high_resolution_clock::now();
 
-                        uint16_t segmentLength = it->dataLength;
+                        std::chrono::duration<float, std::milli> currentTime =
+                            currentTimer - startTransfer;
 
-                        //Remake the segment
-                        Segment resendSegment(segmentLength + SEGMENT_HEADER_LEN, dataPort_, clientPort, it->sequenceNumber,
-                            nextSendAckNumber, it->urg, it->ack, it->psh,
-                            it->rst, it->syn, it->fin, currentServerRecvWindowSize,
-                            it->urgDataPointer, it->options);
+                        printf("Current time: %f\n\n", currentTime.count() - sendWindow_.begin()->timeSent);
 
-                        //Populate the segment with all of it's bytes
-                        for (unsigned int i = 0; i < segmentLength; i++)
+                        //If a timeout has occured, or three duplicate acks arrived
+                        if (currentTime.count() - sendWindow_.begin()->timeSent >= TimeoutInterval_ || numberOfDuplicateAcks >= 3)
                         {
-                            //Get and add the byte it to the segment
-                            resendSegment.AddByte(it->byte);
+                            printf("Timeout time: %f\n\n", TimeoutInterval_);
+                            //Make a list iterator that starts at the begining of the send buffer
+                            std::list<sendWindowByte>::iterator it = sendWindow_.begin();
 
-                            it++;
+                            uint16_t segmentLength = it->dataLength;
+
+                            //Remake the segment
+                            Segment resendSegment(segmentLength + SEGMENT_HEADER_LEN, dataPort_, clientPort, it->sequenceNumber,
+                                nextSendAckNumber, it->urg, it->ack, it->psh,
+                                it->rst, it->syn, it->fin, currentServerRecvWindowSize,
+                                it->urgDataPointer, it->options);
+
+                            //Populate the segment with all of it's bytes
+                            for (unsigned int i = 0; i < segmentLength; i++)
+                            {
+                                //Get and add the byte it to the segment
+                                resendSegment.AddByte(it->byte);
+
+                                it->timeSent = currentTime.count();
+
+                                it++;
+                            }
+
+                            //Only recalculate the timeout interval if a timeout occured
+                            if (numberOfDuplicateAcks > 3)
+                            {
+                                numberOfDuplicateAcks = 0;
+                            }
+
+                            //The slow start threashhold becomes half of the current client window size
+                            ssthresh = currentServerSendWindowSize / 2;
+
+                            //The client window size gets reset back to one full segment.
+                            currentServerSendWindowSize = MAX_SEGMENT_DATA_LEN;
+
+                            //Resend the segment
+                            dataSocket_->Send(resendSegment, dataSocket_->GetRemoteAddress(), clientPort,
+                                bitErrorPercent, segmentLoss);
+
+                            printf("Re-Sending data segment\n");
+                            printf("Segment number %d\n", resendSegment.GetSequenceNumber());
+                            printf("%d bytes long\n\n", resendSegment.GetDataLength());
                         }
-
-                        //Only recalculate the timeout interval if a timeout occured
-                        if (numberOfDuplicateAcks < 3)
-                        {
-                            //Recalculate the estimated RTT value 
-                            EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * timermiliSeconds.count());
-
-                            //Recalculate the RTT deviation value
-                            DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(timermiliSeconds.count() - EstimatedRTT_)));
-
-                            //Recalculate the Timeout value
-                            TimeoutInterval_ = EstimatedRTT_ + (4 * DevRTT_);
-                        }
-
-                        else
-                        {
-                            numberOfDuplicateAcks = 0;
-                        }
-
-                        //The slow start threashhold becomes half of the current client window size
-                        ssthresh = currentServerSendWindowSize / 2;
-
-                        //The client window size gets reset back to one full segment.
-                        currentServerSendWindowSize = MAX_SEGMENT_DATA_LEN;
-
-                        //Resend the segment
-                        dataSocket_->Send(resendSegment, dataSocket_->GetRemoteAddress(), clientPort,
-                            bitErrorPercent, segmentLoss);
-
-                        printf("Re-Sending data segment\n");
-                        printf("Segment number %d\n", resendSegment.GetSequenceNumber());
-                        printf("%d bytes long\n\n", resendSegment.GetDataLength());
-
-                        //Mark the start time of the timer
-                        startTimer = std::chrono::high_resolution_clock::now();
+                    
                     }
 
                     //A packet has arrived
@@ -1721,8 +1697,10 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         // Get the current timer value in milliseconds
                         currentTimer = std::chrono::high_resolution_clock::now();
 
-                        std::chrono::duration<float, std::milli> timermiliSeconds =
-                            currentTimer - startTimer;
+                        std::chrono::duration<float, std::milli> currentTime =
+                            currentTimer - startTransfer ;
+
+                        float_t RTTSample = currentTime.count() - sendWindow_.begin()->timeSent;
 
                         // Make a segment.
                         Segment AckSegment(MAX_FULL_SEGMENT_LEN);
@@ -1848,10 +1826,10 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         }
 
                         //Recalculate the estimated RTT value 
-                        EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * timermiliSeconds.count());
+                        EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * RTTSample);
 
                         //Recalculate the RTT deviation value
-                        DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(timermiliSeconds.count() - EstimatedRTT_)));
+                        DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(RTTSample - EstimatedRTT_)));
 
                         //Recalculate the Timeout value
                         TimeoutInterval_ = EstimatedRTT_ + (4 * DevRTT_);

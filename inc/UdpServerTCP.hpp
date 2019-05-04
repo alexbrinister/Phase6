@@ -88,6 +88,7 @@ namespace socksahoy
                 uint16_t urgDataPointer; 
                 uint16_t dataLength;
                 uint16_t options;
+                float timeSent;
             };
 
             /// Port the server is listening for connection requests on
