@@ -79,7 +79,6 @@ namespace socksahoy
             {
                 char byte;
                 uint32_t sequenceNumber;
-                uint32_t ackNumber;
                 bool urg;
                 bool ack;
                 bool psh;
@@ -105,8 +104,8 @@ namespace socksahoy
 
             int clientNumber_ = 1;
 
-            //An ring buffer holding all unacked bytes.
-            std::vector<sendWindowByte> sendWindow_;
+            //A list holding all unacked bytes.
+            std::list<sendWindowByte> sendWindow_;
 
             //An buffer indicating if the bytes in the receive window are valid.
             bool recvWindowVaild_[MAX_RECV_WINDOW_SIZE];
