@@ -12,6 +12,7 @@
 #define __TCP_SERVER_HPP__
 
 #include "SocketTCP.hpp"
+#include <list>
 
 namespace socksahoy
 {
@@ -107,7 +108,10 @@ namespace socksahoy
             //An ring buffer holding all unacked bytes.
             std::vector<sendWindowByte> sendWindow_;
 
-            //An ring buffer holding all recieved bytes.
+            //An buffer indicating if the bytes in the receive window are valid.
+            bool recvWindowVaild_[MAX_RECV_WINDOW_SIZE];
+
+            //An buffer holding all recieved bytes.
             char recvWindow_[MAX_RECV_WINDOW_SIZE];
 
             //The current sample round trip time.

@@ -322,6 +322,8 @@ namespace socksahoy
                 {
                     //Simuate bit errors by sending an incorrect checksum value
                     checksum_++;
+
+                    printf("Bit Errors Occurred\n");
                 }
             }
 

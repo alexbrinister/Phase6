@@ -180,6 +180,11 @@ namespace socksahoy
                             segment.vectorSize_,
                             0, addr_->ai_addr, addr_->ai_addrlen);
                     }
+
+                    else
+                    {
+                        printf("Loss Occurred\n");
+                    }
                 }
 
                 //No loss, sendSegmentLoss <= 0
