@@ -38,7 +38,21 @@ namespace socksahoy
             */
             ~UdpServerTCP() 
             {
-                delete dataSocket_;
+                if (connSocket_ != NULL)
+                {
+                    //Delete the conn socket.
+                    delete connSocket_;
+
+                    connSocket_ = NULL;
+                }
+                
+                if (dataSocket_ != NULL)
+                {
+                    //Delete the conn socket.
+                    delete dataSocket_;
+
+                    dataSocket_ = NULL;
+                }
             }
 
             /**

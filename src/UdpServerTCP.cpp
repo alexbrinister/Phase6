@@ -209,6 +209,8 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
     //Delete the old socket.
     delete connSocket_;
 
+    connSocket_ = NULL;
+
     //Make a socket to send and receive data from
     dataSocket_ = new SocketTCP(dataPort_);
 
@@ -522,7 +524,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
 
                             //Pop the acked bytes from the front of the list
 
-                            for (unsigned int i = 0; i < tempNumberOfAckedBytes; i++)
+                            for (unsigned int i = 0; i < tempNumberOfAckedBytes && !sendWindow_.empty(); i++)
                             {
                                 sendWindow_.pop_front();
                             }
@@ -585,7 +587,8 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
 
                             //If the byte after the byte that was just writing is valid, that means a hole was just closed
                             //itterate until an invalid byte is found
-                            while (recvWindowVaild_[recvNextPosition] && recvNextPosition < recvTempNextPosition)
+
+                            while (recvWindowVaild_[recvNextPosition] && ((recvNextPosition < recvTempNextPosition) || (recvNextPosition < numberOfBytesInRecieveWindow)))
                             {
                                 recvNextPosition++;
                                 nextSendAckNumber++;
@@ -781,7 +784,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
 
                             //If the byte after the byte that was just writing is valid, that means a hole was just closed
                             //itterate until an invalid byte is found
-                            while (recvWindowVaild_[recvNextPosition] && recvNextPosition < recvTempNextPosition)
+                            while (recvWindowVaild_[recvNextPosition] && ((recvNextPosition < recvTempNextPosition) || (recvNextPosition < numberOfBytesInRecieveWindow)))
                             {
                                 recvNextPosition++;
                                 nextSendAckNumber++;
@@ -922,6 +925,11 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
         }
 
         outputFile.close();
+
+        //Delete the data socket.
+        delete dataSocket_;
+
+        dataSocket_ = NULL;
     }
 
     catch (std::runtime_error& e)
@@ -939,7 +947,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
     std::cout << "Percent of segments lost: ";
     std::cout << segmentLoss << "%" << std::endl;
 
-    std::cout << "Time for the client to transfer the file in milliseconds: ";
+    std::cout << "Time for the server to transfer the file in milliseconds: ";
     std::cout << miliSeconds.count() << std::endl;
 }
 
@@ -1114,16 +1122,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
 
             //If the timeout occurred
             if (timermiliSeconds.count() >= TimeoutInterval_)
-            {                
-                //Recalculate the estimated RTT value 
-                EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * timermiliSeconds.count());
-
-                //Recalculate the RTT deviation value
-                DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(timermiliSeconds.count() - EstimatedRTT_)));
-
-                //Recalculate the Timeout value
-                TimeoutInterval_ = EstimatedRTT_ + (4 * DevRTT_);
-
+            {
                 //Resend the Sync Ack packet without bit errors or loss
                 connSocket_->Send(SynAckSegment, connSocket_->GetRemoteAddress(),
                     clientPort, bitErrorPercent, segmentLoss);
@@ -1143,6 +1142,8 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
 
     //Delete the old socket.
     delete connSocket_;
+
+    connSocket_ = NULL;
 
     //Set up a new socket the uses the dataPort for this client.
     dataSocket_ = new SocketTCP(dataPort_);
@@ -1235,7 +1236,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
 
                             //Pop the acked bytes from the front of the list
 
-                            for (unsigned int i = 0; i < tempNumberOfAckedBytes; i++)
+                            for (unsigned int i = 0; i < tempNumberOfAckedBytes && !sendWindow_.empty(); i++)
                             {
                                 sendWindow_.pop_front();
                             }
@@ -1305,7 +1306,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
 
                     //If the byte after the byte that was just writing is valid, that means a hole was just closed
                     //itterate until an invalid byte is found
-                    while (recvWindowVaild_[recvNextPosition] && recvNextPosition < recvTempNextPosition)
+                    while (recvWindowVaild_[recvNextPosition] && ((recvNextPosition < recvTempNextPosition) || (recvNextPosition < numberOfBytesInRecieveWindow)))
                     {
                         recvNextPosition++;
                         nextSendAckNumber++;
@@ -1787,7 +1788,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                                     
                                     //Pop the acked bytes from the send window
 
-                                    for (unsigned int i = 0; i < tempNumberOfAckedBytes; i++)
+                                    for (unsigned int i = 0; i < tempNumberOfAckedBytes && !sendWindow_.empty(); i++)
                                     {
                                         sendWindow_.pop_front();
                                     }
@@ -1913,6 +1914,11 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
         finishTransfer = std::chrono::high_resolution_clock::now();
 
         inputFile.close();
+
+        //Delete the data socket.
+        delete dataSocket_;
+
+        dataSocket_ = NULL;
 
         // Get the time it took to send the file in milliseconds
         std::chrono::duration<float, std::milli> miliSeconds = finishTransfer -
