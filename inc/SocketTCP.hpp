@@ -7,13 +7,12 @@
 * \date May 4, 2019
 */
 
-#ifndef __SocketTCP_HPP__
-#define __SocketTCP_HPP__
+#pragma once
 
 /* C++ Standard Template Library headers */
 #include <string>
 
-/* Linux SocketTCP libraries */
+/* Linux socket libraries */
 #include <netdb.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -101,30 +100,7 @@ namespace socksahoy
             * \details Wrapper around the recvfrom() function.
             * \param dest_segment The segment to populate with received data.
             */
-            void Receive(Segment& dest_segment)
-            {
-                //Checks for errors and tracks the actual number of bytes received
-                int numBytes = 0;
-
-                socklen_t remoteAddrLen = sizeof(remoteAddr_); \
-
-                    // Receive a segment of data from the baseSock_ and store the address
-                    // of the sender so that we can send segments back to them.
-                    numBytes = recvfrom(baseSock_,
-                        dest_segment.GetSegment(),
-                        dest_segment.vectorSize_,
-                        0, (SockAddr*)&remoteAddr_,
-                        &remoteAddrLen);
-
-                // Throw an exception with the string corresponding to errno
-                if (numBytes == -1)
-                {
-                    throw std::runtime_error(std::strerror(errno));
-                }
-
-                //Unpack the segment's header data.
-                dest_segment.Deserialize();
-            }
+            void Receive(Segment& dest_segment);
 
             /**
             * \brief Send a single segment to a remote host.
@@ -133,79 +109,13 @@ namespace socksahoy
             * \param destAddr The destination address to send the segment to.
             * \param destPort The destination port of the receiving host.
             * \param sendBitErrorPercent Percent of data segments to corrupt.
-            * \param recvsegmentLoss Percent of data segments that will be lost.
+            * \param sendSegmentLoss Percent of data segments that will be lost.
             */
             void Send(Segment& segment,
                 const std::string& destAddr,
                 unsigned int destPort,
-                int sendBitErrorPercent,
-                int sendSegmentLoss)
-            {
-                //Checks for errors and tracks the actual number of bytes sent
-                int numBytes = 0;
-
-                // Reuse the addressinfo object to send segments
-                GetAddressInfo(destPort, destAddr);
-
-                //Pack the header info into the segment.
-                segment.Serialize();
-
-                //Calculate the segment's checksum value.
-                segment.CalculateChecksum(sendBitErrorPercent);
-
-                //If sendSegmentLoss <= 0, no loss should occur
-                if (sendSegmentLoss > 0)
-                {
-                    // Random number engine and distribution
-                    // Distribution in range [1, 100]
-                    std::random_device dev;
-                    std::mt19937 rng(dev());
-
-                    using distType = std::mt19937::result_type;
-                    std::uniform_int_distribution<distType> uniformDist(1, 100);
-
-                    int random_number = uniformDist(rng);
-
-                    //Check the random number against the loss percent to see if this
-                    //segment will be lost, if it's greater than it the segment won't be
-                    //lost
-                    if (sendSegmentLoss < random_number)
-                    {
-                        std::cout << "Sending to address: " << destAddr << std::endl;
-                        printf("With port: %d\n", destPort);
-                        //Send the segment to the specified address
-                        numBytes = sendto(baseSock_,
-                            segment.GetSegment(),
-                            segment.vectorSize_,
-                            0, addr_->ai_addr, addr_->ai_addrlen);
-                    }
-
-                    else
-                    {
-                        printf("Loss Occurred\n");
-                    }
-                }
-
-                //No loss, sendSegmentLoss <= 0
-                else
-                {
-                    std::cout << "Sending to address: " << destAddr << std::endl;
-                    printf("With port: %d\n", destPort);
-                    //Send the segment to the specified address
-                    numBytes = sendto(baseSock_,
-                        segment.GetSegment(),
-                        segment.vectorSize_,
-                        0, addr_->ai_addr, addr_->ai_addrlen);
-                }
-
-                // Throw an exception with the string corresponding to errno
-                if (numBytes == -1)
-                {
-                    throw std::runtime_error(std::strerror(errno));
-                }
-
-                FreeAddressInfo();
-            }
+                unsigned int sendBitErrorPercent,
+                unsigned int sendSegmentLoss);
 
             /**
             * \brief Check if a segment can be received safely without blocking.
@@ -216,7 +126,8 @@ namespace socksahoy
 
             /**
             * \brief Bind a SocketTCP to a port.
-            * \details Wrapper around the bind() function, required to recieve segments using the socket.
+            * \details Wrapper around the bind() function, required to receive
+            * segments using the socket.
             */
             void Bind();
 
@@ -270,7 +181,5 @@ namespace socksahoy
             void FreeAddressInfo();
     };
 }
-
-#endif /* end of SocketTCP.hpp */
 
 // vim: set expandtab ts=4 sw=4:

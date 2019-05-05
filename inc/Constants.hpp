@@ -7,8 +7,7 @@
 * \date May 4, 2019
 */
 
-#ifndef __CONSTANTS_HPP__
-#define __CONSTANTS_HPP__
+#pragma once
 
 /*
 * Linux includes the POSIX HOST_NAME_MAX because POSIX adds constants to
@@ -77,7 +76,5 @@ namespace socksahoy
     //The beta value for the timeout
     const std::float_t BETA = 1.0/4.0;
 }
-
-#endif /* End of Constants.hpp */
 
 // vim: set expandtab ts=4 sw=4:

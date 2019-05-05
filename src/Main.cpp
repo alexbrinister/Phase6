@@ -22,7 +22,7 @@
 #include <unistd.h>
 #include <getopt.h>
 
-#include "UdpServerTCP.hpp"
+#include "TcpServer.hpp"
 
 /// Usage print out
 // TODO : Use C++ string formatting functionality on this to make it nicer.
@@ -315,7 +315,7 @@ int main(int argc, char** argv)
         // Now, we run either the server or client
         if (modeFlag == 0) /* Server mode... */
         {
-            socksahoy::UdpServerTCP server(myPort);
+            socksahoy::TcpServer server(myPort);
 
             server.Listen(outFile,
                     inFile,
@@ -326,7 +326,7 @@ int main(int argc, char** argv)
 
         else if (modeFlag == 1) /* Client mode... */
         {
-            socksahoy::UdpServerTCP server(myPort);
+            socksahoy::TcpServer server(myPort);
 
             server.Send(dstPort,
                     serverAddr,
