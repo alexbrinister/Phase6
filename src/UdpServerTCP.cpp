@@ -182,15 +182,6 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
         //If the timeout occurred
         if (timermiliSeconds.count() >= TimeoutInterval_)
         {
-            //Recalculate the estimated RTT value 
-            EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * timermiliSeconds.count());
-
-            //Recalculate the RTT deviation value
-            DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(timermiliSeconds.count() - EstimatedRTT_)));
-
-            //Recalculate the Timeout value
-            TimeoutInterval_ = EstimatedRTT_ + (4 * DevRTT_);
-
             //Resend the Sync packet
             connSocket_->Send(SynSegment, destAddr,
                 destPort, bitErrorPercent, segmentLoss);
@@ -630,7 +621,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         }
 
                         //If the recieve buffer is full and there are no holes
-                        if (currentClientRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition)
+                        if (currentClientRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition && !recievedFin)
                         {
                             //Write the data in the recieve window to the file
                             outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
@@ -826,7 +817,7 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                         }
 
                         //If the recieve buffer is full and there are no holes
-                        if (currentClientRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition)
+                        if (currentClientRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition && !recievedFin)
                         {
                             //Write the data in the recieve window to the file
                             outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
@@ -897,15 +888,6 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                 //If the timeout occurred
                 if (timermiliSeconds.count() >= TimeoutInterval_)
                 {
-                    //Recalculate the estimated RTT value 
-                    EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * timermiliSeconds.count());
-
-                    //Recalculate the RTT deviation value
-                    DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(timermiliSeconds.count() - EstimatedRTT_)));
-
-                    //Recalculate the Timeout value
-                    TimeoutInterval_ = EstimatedRTT_ + (4 * DevRTT_);
-
                     //Resend the fin segment
                     dataSocket_->Send(finSegment, destAddr,
                         destPort, bitErrorPercent, segmentLoss);
@@ -1020,121 +1002,127 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
     //Make a Sync packet that will be recieved from the connecting client
     Segment SynSegment(MAX_EMPTY_SEGMENT_LEN);
 
-    //Wait for a client to connect
-    connSocket_->Receive(SynSegment);
-
-    printf("Recieved syn segment\n");
-    printf("Segment number %d\n", SynSegment.GetSequenceNumber());
-    printf("%d bytes long\n\n", SynSegment.GetDataLength());
-
-    //If the sync packet isn't corrupt and it's syn flag is set
-    if (SynSegment.CalculateChecksum(0) == 0x0000 && SynSegment.GetSyncFlag())
+    while (true)
     {
-        //Store the starting sequence number of the client
-        startingClientSequenceNumber = SynSegment.GetSequenceNumber();
+        //Wait for a client to connect
+        connSocket_->Receive(SynSegment);
 
-        //Make the max send window the same size of the recieve window of the client
-        maxServerSendWindowSize = SynSegment.GetReceiveWindow();
+        printf("Recieved syn segment\n");
+        printf("Segment number %d\n", SynSegment.GetSequenceNumber());
+        printf("%d bytes long\n\n", SynSegment.GetDataLength());
 
-        currentClientRecvWindowSize = maxServerSendWindowSize;
-
-        //Store the port number of the client
-        clientPort = SynSegment.GetSourcePortNumber();
-
-        // Random number engine and distribution
-        // Distribution in range [1, 100]
-        std::random_device dev;
-        std::mt19937 rng(dev());
-
-        using distType = std::mt19937::result_type;
-        std::uniform_int_distribution<distType> uniformDist(1, 100);
-
-        startingServerSequenceNumber = uniformDist(rng);
-
-        nextSendAckNumber = startingClientSequenceNumber + 1;
-
-        //Make a data port for this client
-        dataPort_ = connPort_ + clientNumber_;
-
-        //Make a Sync Ack packet that will be sent back to the client with the port number of the data socket
-        Segment SynAckSegment(MAX_EMPTY_SEGMENT_LEN, dataPort_, clientPort, startingServerSequenceNumber,
-            nextSendAckNumber, false, true, false, false, true, false, currentServerRecvWindowSize, 0, 0);
-
-        //Send the Sync Ack packet
-        connSocket_->Send(SynAckSegment, connSocket_->GetRemoteAddress(),
-            clientPort, bitErrorPercent, segmentLoss);
-
-        printf("Sending syn ack segment\n");
-        printf("Segment number %d\n", SynAckSegment.GetSequenceNumber());
-        printf("Ack number %d\n", SynAckSegment.GetAckNumber());
-        printf("%d bytes long\n\n", SynAckSegment.GetDataLength());
-
-        clientNumber_++;
-
-        //Set the starting value of the timer
-        startTimer = std::chrono::high_resolution_clock::now();
-
-        while (true)
+        //If the sync packet isn't corrupt and it's syn flag is set
+        if (SynSegment.CalculateChecksum(0) == 0x0000 && SynSegment.GetSyncFlag())
         {
-            //If a packet arrived
-            if (connSocket_->CheckReceive())
+            //Store the starting sequence number of the client
+            startingClientSequenceNumber = SynSegment.GetSequenceNumber();
+
+            //Make the max send window the same size of the recieve window of the client
+            maxServerSendWindowSize = SynSegment.GetReceiveWindow();
+
+            currentClientRecvWindowSize = maxServerSendWindowSize;
+
+            //Store the port number of the client
+            clientPort = SynSegment.GetSourcePortNumber();
+
+            // Random number engine and distribution
+            // Distribution in range [1, 100]
+            std::random_device dev;
+            std::mt19937 rng(dev());
+
+            using distType = std::mt19937::result_type;
+            std::uniform_int_distribution<distType> uniformDist(1, 100);
+
+            startingServerSequenceNumber = uniformDist(rng);
+
+            nextSendAckNumber = startingClientSequenceNumber + 1;
+
+            //Make a data port for this client
+            dataPort_ = connPort_ + clientNumber_;
+
+            //Make a Sync Ack packet that will be sent back to the client with the port number of the data socket
+            Segment SynAckSegment(MAX_EMPTY_SEGMENT_LEN, dataPort_, clientPort, startingServerSequenceNumber,
+                nextSendAckNumber, false, true, false, false, true, false, currentServerRecvWindowSize, 0, 0);
+
+            printf("Sending syn ack segment\n");
+
+            //Send the Sync Ack packet
+            connSocket_->Send(SynAckSegment, connSocket_->GetRemoteAddress(),
+                clientPort, bitErrorPercent, segmentLoss);
+
+            printf("Segment number %d\n", SynAckSegment.GetSequenceNumber());
+            printf("Ack number %d\n", SynAckSegment.GetAckNumber());
+            printf("%d bytes long\n\n", SynAckSegment.GetDataLength());
+
+            clientNumber_++;
+
+            //Set the starting value of the timer
+            startTimer = std::chrono::high_resolution_clock::now();
+
+            while (true)
             {
+                //If a packet arrived
+                if (connSocket_->CheckReceive())
+                {
+                    // Get the current timer value in milliseconds
+                    currentTimer = std::chrono::high_resolution_clock::now();
+
+                    std::chrono::duration<float, std::milli> timermiliSeconds =
+                        currentTimer - startTimer;
+
+                    //Recalculate the estimated RTT value 
+                    EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * timermiliSeconds.count());
+
+                    //Recalculate the RTT deviation value
+                    DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(timermiliSeconds.count() - EstimatedRTT_)));
+
+                    //Recalculate the Timeout value
+                    TimeoutInterval_ = EstimatedRTT_ + (4 * DevRTT_);
+
+                    //Make a Ack packet that will be recieved from the connecting client
+                    Segment AckSegment(MAX_EMPTY_SEGMENT_LEN);
+
+                    //Recieve the ack packet from the client
+                    connSocket_->Receive(AckSegment);
+
+                    printf("Recieved segment\n");
+                    printf("Segment number %d\n", AckSegment.GetSequenceNumber());
+                    printf("%d bytes long\n", AckSegment.GetDataLength());
+
+                    //If the ack packet isn't corrupt, has the correct flags set, and has the correct ack number
+                    if (AckSegment.CalculateChecksum(0) == 0x0000 && AckSegment.GetAckFlag() && AckSegment.GetAckNumber() == startingServerSequenceNumber + 1)
+                    {
+                        printf("It's an ack\n");
+                        printf("Ack number %d\n\n", AckSegment.GetAckNumber());
+                        //Connection established, break out of the loop
+                        break;
+                    }
+                }
+
                 // Get the current timer value in milliseconds
                 currentTimer = std::chrono::high_resolution_clock::now();
 
                 std::chrono::duration<float, std::milli> timermiliSeconds =
                     currentTimer - startTimer;
 
-                //Recalculate the estimated RTT value 
-                EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * timermiliSeconds.count());
-
-                //Recalculate the RTT deviation value
-                DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(timermiliSeconds.count() - EstimatedRTT_)));
-
-                //Recalculate the Timeout value
-                TimeoutInterval_ = EstimatedRTT_ + (4 * DevRTT_);
-
-                //Make a Ack packet that will be recieved from the connecting client
-                Segment AckSegment(MAX_EMPTY_SEGMENT_LEN);
-
-                //Recieve the ack packet from the client
-                connSocket_->Receive(AckSegment);
-
-                printf("Recieved segment\n");
-                printf("Segment number %d\n", AckSegment.GetSequenceNumber());
-                printf("%d bytes long\n", AckSegment.GetDataLength());
-                
-                //If the ack packet isn't corrupt, has the correct flags set, and has the correct ack number
-                if (AckSegment.CalculateChecksum(0) == 0x0000 && AckSegment.GetAckFlag() && AckSegment.GetAckNumber() == startingServerSequenceNumber + 1)
+                //If the timeout occurred
+                if (timermiliSeconds.count() >= TimeoutInterval_)
                 {
-                    printf("It's an ack\n");
-                    printf("Ack number %d\n\n", AckSegment.GetAckNumber());
-                    //Connection established, break out of the loop
-                    break;
+                    //Resend the Sync Ack packet without bit errors or loss
+                    connSocket_->Send(SynAckSegment, connSocket_->GetRemoteAddress(),
+                        clientPort, bitErrorPercent, segmentLoss);
+
+                    printf("Re-Sending syn ack segment\n");
+                    printf("Segment number %d\n", SynAckSegment.GetSequenceNumber());
+                    printf("Ack number %d\n", SynAckSegment.GetAckNumber());
+                    printf("%d bytes long\n\n", SynAckSegment.GetDataLength());
+
+                    //Restart the timer
+                    startTimer = std::chrono::high_resolution_clock::now();
                 }
             }
 
-            // Get the current timer value in milliseconds
-            currentTimer = std::chrono::high_resolution_clock::now();
-
-            std::chrono::duration<float, std::milli> timermiliSeconds =
-                currentTimer - startTimer;
-
-            //If the timeout occurred
-            if (timermiliSeconds.count() >= TimeoutInterval_)
-            {
-                //Resend the Sync Ack packet without bit errors or loss
-                connSocket_->Send(SynAckSegment, connSocket_->GetRemoteAddress(),
-                    clientPort, bitErrorPercent, segmentLoss);
-
-                printf("Re-Sending syn ack segment\n");
-                printf("Segment number %d\n", SynAckSegment.GetSequenceNumber());
-                printf("Ack number %d\n", SynAckSegment.GetAckNumber());
-                printf("%d bytes long\n\n", SynAckSegment.GetDataLength());
-
-                //Restart the timer
-                startTimer = std::chrono::high_resolution_clock::now();
-            }
+            break;
         }
     }
 
@@ -1264,9 +1252,6 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                     recievedFin = true;
 
                     nextSendAckNumber = segment.GetSequenceNumber() + 1;
-
-                    //Write the data in the recieve window to the file
-                    outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
                     
                     //Write the data in the recieve window to the file
                     outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
@@ -1348,7 +1333,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                 }
 
                 //If the recieve buffer is full and there are no holes
-                if (currentServerRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition)
+                if (currentServerRecvWindowSize == 0 && recvNextPosition >= recvTempNextPosition && !recievedFin)
                 {
                     //Write the data in the recieve window to the file
                     outputFile.write(recvWindow_, numberOfBytesInRecieveWindow);
@@ -1722,7 +1707,7 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                             if (AckSegment.GetAckFlag())
                             {
                                 //If the ack isn't a duplicate
-                                if (AckSegment.GetAckNumber() != duplicateAckSequenceNumber)
+                                if (AckSegment.GetAckNumber() > duplicateAckSequenceNumber)
                                 {
                                     printf("It's an ack\n");
                                     printf("Ack number %d\n", AckSegment.GetAckNumber());
@@ -1866,15 +1851,6 @@ void socksahoy::UdpServerTCP::Listen(std::string recieveFileName,
                         printf("Re-Sending fin segment\n");
                         printf("Segment number %d\n", finSegment.GetSequenceNumber());
                         printf("%d bytes long\n\n", finSegment.GetDataLength());
-
-                        //Recalculate the estimated RTT value 
-                        EstimatedRTT_ = ((1 - ALPHA)*EstimatedRTT_) + (ALPHA * timermiliSeconds.count());
-
-                        //Recalculate the RTT deviation value
-                        DevRTT_ = ((1 - BETA)*DevRTT_) + (BETA * (fabs(timermiliSeconds.count() - EstimatedRTT_)));
-
-                        //Recalculate the Timeout value
-                        TimeoutInterval_ = EstimatedRTT_ + (4 * DevRTT_);
 
                         //Set the starting value of the timer
                         startTimer = std::chrono::high_resolution_clock::now();
