@@ -1,11 +1,10 @@
 /**
 * \file SocketTCP.cpp
-* \details Linux/Windows SocketTCP Class - Definitions
+* \details Linux SocketTCP Class - Definitions
 * \author Alex Brinister
 * \author Colin Rockwood
-* \author Mike Geoffroy
 * \author Yonatan Genao Baez
-* \date March 24, 2019
+* \date May 4, 2019
 */
 
 /* Standard C++ Library headers */
@@ -33,7 +32,7 @@
 // For setting to non-blocking. Works on both Win and Lin
 #include <fcntl.h>
 
-/* Phase 2 SocketTCP library headers */
+/* Phase 6 SocketTCP library headers */
 #include "Constants.hpp"
 #include "SocketTCP.hpp"
 #include "Segment.hpp"

@@ -3,9 +3,8 @@
 * \details TCP server class - declarations
 * \author Alex Brinister
 * \author Colin Rockwood
-* \author Mike Geoffroy
 * \author Yonatan Genao Baez
-* \date March 24, 2019
+* \date May 4, 2019
 */
 
 #ifndef __TCP_SERVER_HPP__

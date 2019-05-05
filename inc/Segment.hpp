@@ -3,9 +3,8 @@
 * \details Segment class
 * \author Alex Brinister
 * \author Colin Rockwood
-* \author Mike Geoffroy
 * \author Yonatan Genao Baez
-* \date April 10, 2019
+* \date May 4, 2019
 */
 
 #ifndef __SEGMENT_HPP__
@@ -38,9 +37,21 @@ namespace socksahoy
 
         /**
         * \brief Constructor
-        * \details Creates a new packet.
-        * \param sourcePortNumber the source port number of the segment
-        * \param packets The total number of packets that will be sent.
+        * \details Creates a new segement.
+        * \param size The size of the segment
+        * \param sourcePortNumber The source port of the segment
+        * \param destPortNumber The destination port of the segment
+        * \param sequenceNumber The sequence number of the segment
+        * \param ackNumber The ack number of the segment
+        * \param urg The urgent flag of the segment
+        * \param ack The acknowledgment flag of the segment
+        * \param psh The push flag of the segment
+        * \param rst The reset flag of the segment
+        * \param syn The sync flag of the segment
+        * \param fin The finish flag of the segment
+        * \param rwnd The remaining recieve window size number of the segment's sender
+        * \param urg_data_pointer The urgent data pointer of the segment
+        * \param options The options field of the segment
         */
         Segment(size_t size, uint16_t sourcePortNumber, uint16_t destPortNumber, uint32_t sequenceNumber,
                uint32_t ackNumber, bool urg, bool ack, bool psh, bool rst, bool syn, bool fin, 
@@ -66,6 +77,11 @@ namespace socksahoy
             options_ = options;
         }
 
+        /**
+        * \brief Constructor
+        * \details Creates a new, empty segement or recieveing.
+        * \param size The size of the segment
+        */
         Segment(size_t size)
         {
             vectorSize_ = size;
@@ -577,7 +593,7 @@ namespace socksahoy
         uint16_t dataLength_;           ///< The length of the data, in bytes, in the segment.
         uint16_t options_;              ///< The options field.
         std::vector<char> data_;        ///< The data array.
-        size_t vectorSize_;
+        size_t vectorSize_;             ///< The total size of the segment
     };
 }
 

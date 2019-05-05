@@ -3,8 +3,8 @@
 * \details Constants for this project
 * \author Alex Brinister
 * \author Colin Rockwood
-* \author Mike Geoffroy
-* \date February 16, 2019
+* \author Yonatan Genao Baez
+* \date May 4, 2019
 */
 
 #ifndef __CONSTANTS_HPP__

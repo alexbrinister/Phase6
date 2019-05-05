@@ -3,9 +3,8 @@
 * \details Main program
 * \author Alex Brinister
 * \author Colin Rockwood
-* \author Mike Geoffroy
 * \author Yonatan Genao Baez
-* \date March 24, 2019
+* \date May 4, 2019
 */
 
 /* Standard C++ Library headers */

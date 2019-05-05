@@ -1,11 +1,10 @@
 /**
 * \file SocketTCP.hpp
-* \details Linux/Windows SocketTCP Class - Declarations
+* \details Linux SocketTCP Class - Declarations
 * \author Alex Brinister
 * \author Colin Rockwood
-* \author Mike Geoffroy
 * \author Yonatan Genao Baez
-* \date March 24, 2019
+* \date May 4, 2019
 */
 
 #ifndef __SocketTCP_HPP__
@@ -20,7 +19,7 @@
 #include <sys/types.h>
 #include <sys/select.h>
 
-/* Phase 2 SocketTCP library headers */
+/* Phase 6 SocketTCP library headers */
 #include "Segment.hpp"
 
 /// Group namespace
@@ -68,7 +67,7 @@ namespace socksahoy
         public:
             /**
             * \brief Constructor for a Socket.
-            * \details Initializes a Windows/Linux Socket. This creates the
+            * \details Initializes a Linux Socket. This creates the
             * file descriptor and prepares the Socket for use. The default
             * is to create a client flag. Note that for a client Socket, the
             * port is the destination port and for the server, this is the
@@ -92,13 +91,13 @@ namespace socksahoy
 
             /**
             * \brief Destructor
-            * \details Closes SocketTCP file
+            * \details Closes socket file
             * descriptor.
             */
             ~SocketTCP();
 
             /**
-            * \brief Receive data from a remote SocketTCP.
+            * \brief Receive data from a remote socket.
             * \details Wrapper around the recvfrom() function.
             * \param dest_segment The segment to populate with received data.
             */
@@ -109,7 +108,7 @@ namespace socksahoy
 
                 socklen_t remoteAddrLen = sizeof(remoteAddr_); \
 
-                    // Receive a segment of data from the base_SocketTCP and store the address
+                    // Receive a segment of data from the baseSock_ and store the address
                     // of the sender so that we can send segments back to them.
                     numBytes = recvfrom(baseSock_,
                         dest_segment.GetSegment(),
@@ -130,8 +129,8 @@ namespace socksahoy
             /**
             * \brief Send a single segment to a remote host.
             * \details Wrapper around the sendto() function.
-            * \param segment The segment to send to the remote SocketTCP.
-            * \param destAddr The destination address to send segment to.
+            * \param segment The segment to send to the remote socket.
+            * \param destAddr The destination address to send the segment to.
             * \param destPort The destination port of the receiving host.
             * \param sendBitErrorPercent Percent of data segments to corrupt.
             * \param recvsegmentLoss Percent of data segments that will be lost.
@@ -209,14 +208,15 @@ namespace socksahoy
             }
 
             /**
-            * \brief Check if a segment can be received.
+            * \brief Check if a segment can be received safely without blocking.
             * \details Wrapper around the select() function.
-            * \return If the select function timed out.
+            * \return If the select function timed out or not.
             */
             bool CheckReceive();
 
             /**
             * \brief Bind a SocketTCP to a port.
+            * \details Wrapper around the bind() function, required to recieve segments using the socket.
             */
             void Bind();
 
