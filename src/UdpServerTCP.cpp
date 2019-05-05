@@ -425,6 +425,8 @@ void socksahoy::UdpServerTCP::Send(unsigned int destPort,
                     //The slow start threashhold becomes half of the current client window size
                     ssthresh = currentClientSendWindowSize / 2;
 
+                    printf("ssthresh: %d\n", ssthresh);
+
                     //The client window size gets reset back to one full segment.
                     currentClientSendWindowSize = MAX_SEGMENT_DATA_LEN;
 
