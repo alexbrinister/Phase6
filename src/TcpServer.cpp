@@ -58,6 +58,10 @@ void socksahoy::TcpServer::Send(unsigned int destPort,
 {
     printf("\n");
 
+    float average_timeout = 50;
+
+    unsigned int timeout_resample_count = 1;
+
     // The current number of bytes that the client can receive before it's
     // receive window becomes full
     unsigned int currentClientRecvWindowSize = MAX_RECV_WINDOW_SIZE;
@@ -306,7 +310,7 @@ void socksahoy::TcpServer::Send(unsigned int destPort,
             // The ring buffer isn't full and the last segment hasn't been
             // sent, and the server can handle more bytes.
             if ((numberOfUnackedBytes < currentClientSendWindowSize)
-                    && (numberOfUnackedBytes < (unsigned int)fileSize)
+                    && (numberOfUnackedBytes + numberOfAckedBytes < (unsigned int)fileSize)
                     && numberOfUnackedBytes < currentServerRecvWindowSize)
             {
                 printf("Timeout time: %f\n\n", timeoutInterval_);
@@ -441,7 +445,7 @@ void socksahoy::TcpServer::Send(unsigned int destPort,
                 currentTimer = std::chrono::high_resolution_clock::now();
 
                 std::chrono::duration<float, std::milli> currentTime =
-                    currentTimer - startTransfer ;
+                    currentTimer - startTransfer;
 
                 printf("Current time: %f\n\n",
                         currentTime.count() - sendWindow_.begin()->timeSent);
@@ -804,8 +808,7 @@ void socksahoy::TcpServer::Send(unsigned int destPort,
 
                                 // Increase the number of bytes in the receive
                                 // window
-                                numberOfBytesInReceiveWindow +=
-                                    recvNextPosition - recvTempNextPosition;
+                                numberOfBytesInReceiveWindow = recvTempNextPosition;
 
                                 // Move the next position to the temp position
                                 recvNextPosition = recvTempNextPosition;
@@ -859,6 +862,10 @@ void socksahoy::TcpServer::Send(unsigned int destPort,
 
                 // Recalculate the Timeout value
                 timeoutInterval_ = estimatedRtt_ + (4 * devRtt_);
+
+                average_timeout += timeoutInterval_;
+
+                timeout_resample_count++;
 
                 printf("\n");
             }
@@ -1046,8 +1053,7 @@ void socksahoy::TcpServer::Send(unsigned int destPort,
                                 nextSendAckNumber += recvNextPosition -
                                     recvTempNextPosition;
 
-                                numberOfBytesInReceiveWindow +=
-                                    recvNextPosition - recvTempNextPosition;
+                                numberOfBytesInReceiveWindow = recvTempNextPosition;
 
                                 recvNextPosition = recvTempNextPosition;
                             }
@@ -1119,6 +1125,10 @@ void socksahoy::TcpServer::Send(unsigned int destPort,
                 // Recalculate the Timeout value
                 timeoutInterval_ = estimatedRtt_ + (4 * devRtt_);
 
+                average_timeout += timeoutInterval_;
+
+                timeout_resample_count++;
+
                 // Mark the start time of the timer
                 startTimer = std::chrono::high_resolution_clock::now();
 
@@ -1178,6 +1188,9 @@ void socksahoy::TcpServer::Send(unsigned int destPort,
         printf("Time for the server to transfer the file in milliseconds: ");
         printf("%g\n", miliSeconds.count());
 
+        printf("Average timeout in milliseconds: ");
+        printf("%g\n", average_timeout/((float)timeout_resample_count));
+
     }
     catch (std::runtime_error& e)
     {
@@ -1193,6 +1206,10 @@ void socksahoy::TcpServer::Listen(const std::string& receiveFileName,
         bool ignoreLoss)
 {
     printf("\n");
+
+    float average_timeout = 50;
+
+    unsigned int timeout_resample_count = 1;
 
     // The current number of bytes that the server can receive before it's
     // receive window becomes full
@@ -1632,8 +1649,7 @@ void socksahoy::TcpServer::Listen(const std::string& receiveFileName,
                         nextSendAckNumber += recvNextPosition -
                             recvTempNextPosition;
 
-                        numberOfBytesInReceiveWindow += recvNextPosition -
-                            recvTempNextPosition;
+                        numberOfBytesInReceiveWindow = recvTempNextPosition;
 
                         recvNextPosition = recvTempNextPosition;
                     }
@@ -1725,7 +1741,7 @@ void socksahoy::TcpServer::Listen(const std::string& receiveFileName,
                         // Mark the start time of the timer
                         startTimer = std::chrono::high_resolution_clock::now();
                         std::chrono::duration<float, std::milli> currentTime =
-                            startTransfer - startTimer;
+                            startTimer - startTransfer;
 
                         // Populate the ack segment with new data from the file
                         for (;;)
@@ -1921,7 +1937,7 @@ void socksahoy::TcpServer::Listen(const std::string& receiveFileName,
                 {
                     // The ring buffer isn't full
                     if ((numberOfUnackedBytes < currentServerSendWindowSize)
-                        && numberOfUnackedBytes < (unsigned int)fileSize
+                        && numberOfUnackedBytes + numberOfAckedBytes < (unsigned int)fileSize
                         && numberOfUnackedBytes < currentClientRecvWindowSize)
                     {
                         printf("Timeout time: %f\n\n", timeoutInterval_);
@@ -2322,6 +2338,10 @@ void socksahoy::TcpServer::Listen(const std::string& receiveFileName,
                         // Recalculate the Timeout value
                         timeoutInterval_ = estimatedRtt_ + (4 * devRtt_);
 
+                        average_timeout += timeoutInterval_;
+
+                        timeout_resample_count++;
+
                         // Mark the start time of the timer
                         startTimer = std::chrono::high_resolution_clock::now();
 
@@ -2417,6 +2437,9 @@ void socksahoy::TcpServer::Listen(const std::string& receiveFileName,
 
         printf("Time for the client to transfer the file in milliseconds: ");
         printf("%g\n", miliSeconds.count());
+
+        printf("Average timeout in milliseconds: ");
+        printf("%g\n", average_timeout / ((float)timeout_resample_count));
     }
 
     catch (std::runtime_error& e)
