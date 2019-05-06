@@ -1,0 +1,11 @@
+# Top-most EditorConfig file
+root = true
+
+# Style options for C++ sources and headers
+[*.{hpp,cpp}]
+end_of_line = lf
+insert_final_newline = false
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+max_line_length = 80

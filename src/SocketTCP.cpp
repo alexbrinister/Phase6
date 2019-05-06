@@ -1,11 +1,10 @@
 /**
-* \file SocketGBN.cpp
-* \details Linux/Windows SocketGBN Class - Definitions
+* \file SocketTCP.cpp
+* \details Linux SocketTCP Class - Definitions
 * \author Alex Brinister
 * \author Colin Rockwood
-* \author Mike Geoffroy
 * \author Yonatan Genao Baez
-* \date March 24, 2019
+* \date May 4, 2019
 */
 
 /* Standard C++ Library headers */
@@ -24,7 +23,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/select.h>
-/* Linux SocketGBN/network library headers */
+/* Linux SocketTCP/network library headers */
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -33,12 +32,12 @@
 // For setting to non-blocking. Works on both Win and Lin
 #include <fcntl.h>
 
-/* Phase 2 SocketGBN library headers */
+/* Phase 6 SocketTCP library headers */
 #include "Constants.hpp"
-#include "SocketGBN.hpp"
-#include "Packet.hpp"
+#include "SocketTCP.hpp"
+#include "Segment.hpp"
 
-socksahoy::SocketGBN::SocketGBN(unsigned int port,
+socksahoy::SocketTCP::SocketTCP(unsigned int port,
                                 unsigned int flag,
                                 const std::string& destAddr)
     : baseSock_(0), addr_(nullptr), port_(port)
@@ -67,10 +66,10 @@ socksahoy::SocketGBN::SocketGBN(unsigned int port,
 
     GetAddressInfo(port_, destAddr);
 
-    // Create the SocketGBN file descriptor (or kernel object in Windows)
+    // Create the SocketTCP file descriptor (or kernel object in Windows)
     baseSock_ = socket(addr_->ai_family,
-                       addr_->ai_socktype,
-                       addr_->ai_protocol);
+                        addr_->ai_socktype,
+                        addr_->ai_protocol);
 
     if (baseSock_ == -1)
     {
@@ -96,23 +95,119 @@ socksahoy::SocketGBN::SocketGBN(unsigned int port,
             throw std::runtime_error(std::strerror(errno));
         }
     }
-
-    NextExpectedPacket_ = 0;
-
 }
 
-socksahoy::SocketGBN::~SocketGBN()
+socksahoy::SocketTCP::~SocketTCP()
 {
-    // Close the SocketGBN file descriptor
+    // Close the SocketTCP file descriptor
     if (baseSock_ != 0)
     {
         close(baseSock_);
     }
 }
 
-bool socksahoy::SocketGBN::CheckReceive()
+void socksahoy::SocketTCP::Receive(Segment& dest_segment)
 {
-    //Checks for errors and tracks the actual number of bytes received
+    // Checks for errors and tracks the actual number of bytes received
+    int numBytes = 0;
+
+    socklen_t remoteAddrLen = sizeof(remoteAddr_);
+
+    // Receive a segment of data from the baseSock_ and store
+    // the address of the sender so that we can send segments
+    // back to them.
+    numBytes = recvfrom(baseSock_,
+            dest_segment.GetSegment(),
+            dest_segment.vectorSize_,
+            0, (SockAddr*)&remoteAddr_,
+            &remoteAddrLen);
+
+    // Throw an exception with the string corresponding to errno
+    if (numBytes == -1)
+    {
+        throw std::runtime_error(std::strerror(errno));
+    }
+
+    // Unpack the segment's header data.
+    dest_segment.Deserialize();
+}
+
+void socksahoy::SocketTCP::Send(Segment& segment,
+        const std::string& destAddr,
+        unsigned int destPort,
+        unsigned int sendBitErrorPercent,
+        unsigned int sendSegmentLoss)
+{
+    //Checks for errors and tracks the actual number of bytes sent
+    int numBytes = 0;
+
+    // Reuse the addressinfo object to send segments
+    GetAddressInfo(destPort, destAddr);
+
+    //Pack the header info into the segment.
+    segment.Serialize();
+
+    //Calculate the segment's checksum value.
+    segment.CalculateChecksum(sendBitErrorPercent);
+
+    //If sendSegmentLoss <= 0, no loss should occur
+    if (sendSegmentLoss > 0)
+    {
+        // Random number engine and distribution
+        // Distribution in range [1, 100]
+        std::random_device dev;
+        std::mt19937 rng(dev());
+
+        using distType = std::mt19937::result_type;
+        std::uniform_int_distribution<distType> uniformDist(1, 100);
+
+        unsigned int random_number = uniformDist(rng);
+
+        // Check the random number against the loss percent to see
+        // if this segment will be lost, if it's greater than it the
+        // segment won't be lost
+        if (sendSegmentLoss < random_number)
+        {
+            printf("Sending to address: %s ", destAddr.c_str());
+            printf("With port: %u\n", destPort);
+
+            // Send the segment to the specified address
+            numBytes = sendto(baseSock_,
+                    segment.GetSegment(),
+                    segment.vectorSize_,
+                    0, addr_->ai_addr, addr_->ai_addrlen);
+        }
+
+        else
+        {
+            printf("Loss Occurred\n");
+        }
+    }
+
+    // No loss, sendSegmentLoss <= 0
+    else
+    {
+        printf("Sending to address: %s ", destAddr.c_str());
+        printf("With port: %u\n", destPort);
+
+        // Send the segment to the specified address
+        numBytes = sendto(baseSock_,
+                segment.GetSegment(),
+                segment.vectorSize_,
+                0, addr_->ai_addr, addr_->ai_addrlen);
+    }
+
+    // Throw an exception with the string corresponding to errno
+    if (numBytes == -1)
+    {
+        throw std::runtime_error(std::strerror(errno));
+    }
+
+    FreeAddressInfo();
+}
+bool socksahoy::SocketTCP::CheckReceive()
+{
+    // Checks for errors and tracks the actual number of bytes received
     int numBytes = 0;
 
     // Clear the set of file discriptors
@@ -150,7 +245,7 @@ bool socksahoy::SocketGBN::CheckReceive()
 }
 
 void
-socksahoy::SocketGBN::Bind()
+socksahoy::SocketTCP::Bind()
 {
     int error = bind(baseSock_, addr_->ai_addr, addr_->ai_addrlen);
 
@@ -166,7 +261,7 @@ socksahoy::SocketGBN::Bind()
 }
 
 std::string
-socksahoy::SocketGBN::GetRemoteAddress()
+socksahoy::SocketTCP::GetRemoteAddress()
 {
     // String to capture the connecting IP address
     std::string remoteaddrStr(INET_ADDRSTRLEN, '\0');
@@ -175,13 +270,13 @@ socksahoy::SocketGBN::GetRemoteAddress()
 
     // Convert binary address to human-readable format
     inet_ntop(remoteAddr_.ss_family, rcvd_addr,
-              &remoteaddrStr[0], INET_ADDRSTRLEN);
+            &remoteaddrStr[0], INET_ADDRSTRLEN);
 
     return remoteaddrStr;
 }
 
 unsigned int
-socksahoy::SocketGBN::GetRemotePort()
+socksahoy::SocketTCP::GetRemotePort()
 {
     in_port_t rcvdPort = ((SockAddrIpv4*)&remoteAddr_)->sin_port;
 
@@ -190,8 +285,8 @@ socksahoy::SocketGBN::GetRemotePort()
 }
 
 void
-socksahoy::SocketGBN::GetAddressInfo(unsigned int port,
-                                     const std::string& addrStr)
+socksahoy::SocketTCP::GetAddressInfo(unsigned int port,
+                                    const std::string& addrStr)
 {
     std::string port_str(std::to_string(port));
 
@@ -214,7 +309,7 @@ socksahoy::SocketGBN::GetAddressInfo(unsigned int port,
     }
 }
 
-void socksahoy::SocketGBN::FreeAddressInfo()
+void socksahoy::SocketTCP::FreeAddressInfo()
 {
     // Can't free if addr_ is null...
     if (addr_ != nullptr)
