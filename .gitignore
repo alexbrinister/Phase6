@@ -538,8 +538,13 @@ local.properties
 
 .sts4-cache/
 
+# Flow charts
+!doc/*.mdxml
+
 # Documentation
-doc
+doc/html
+doc/*.docx
+doc/*.xlsx
 
 # Submissions
 *.zip
@@ -547,4 +552,6 @@ doc
 # Images
 *.bmp
 !test.bmp
+
+
 # End of https://www.gitignore.io/api/qt,vim,c++,cmake,qtcreator,visualstudio
