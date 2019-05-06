@@ -25,7 +25,10 @@
 
 #include "TcpServer.hpp"
 
-/// Usage print out
+/*
+* \brief Usage print out.
+* \param argv The arguments array from the command line.
+*/
 void Usage(char** argv)
 {
     std::cout << "USAGE:\t\t" << argv[0] << std::endl << std::endl;
@@ -61,7 +64,12 @@ void Usage(char** argv)
         "--help        |   -h" << std::endl;
 }
 
-/// Main program function
+/*
+* \brief Main function.
+* \param argc Argument count.
+* \param argv Pointer to an array of argument strings.
+* \return The return code of the main function.
+*/
 int main(int argc, char** argv)
 {
     std::string serverAddr;

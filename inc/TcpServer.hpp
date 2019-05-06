@@ -79,7 +79,7 @@ namespace socksahoy
             * \brief Structure used to hold a byte of data in the sender
             * sliding window.
             */
-            struct sendWindowByte
+            struct SendWindowByte
             {
                 char byte;                  ///< The data byte
                 uint32_t sequenceNumber;    ///< Seq. num. byte belongs to.
@@ -111,7 +111,7 @@ namespace socksahoy
             int clientNumber_ = 1;
 
             /// A list holding all unacked bytes.
-            std::list<sendWindowByte> sendWindow_;
+            std::list<SendWindowByte> sendWindow_;
 
             /// Buffer indicating if the bytes in the receive window are valid.
             std::array<bool, MAX_RECV_WINDOW_SIZE> recvWindowValid_;

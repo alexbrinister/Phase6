@@ -1,5 +1,23 @@
 # EECE.4830 Network Design Phase 6
 ## Introduction
+In this extra-credit phase, the a simplified TCP protocol was implemented.
+Specifically, the following parts of the TCP protocol were implemented:
+
+* Connection setup
+* Connection tear-down
+* Dynamic window size
+* Dynamic time-out 
+* Flow control
+* Congestion control
+
+Connection setup consists of a 3-way handshaking routine between a client and
+server host. This is how every TCP connection starts. After this handshake, the
+client proceeds to send data to the server. During the data transmission step,
+flow control and congestion control algorithms govern how fast the client can
+send data by manipulating the send window and timeout based on how available
+the server is and if there was segment loss. At the end of the data
+transmissioin, the connection tear-down routine is run to disconnect the client
+from the server.
 
 ## Dependencies
 This project has few dependencies. These are:
@@ -19,7 +37,7 @@ cmake -DCMAKE_BUILD_TYPE=Release ../..
 make
 ```
 The resulting executable is in the `bin` folder in the root directory of the
-project. It will be called `phase5_release.bin`.
+project. It will be called `phase6_release.bin`.
 
 ## Usage
 One can use the program as a server or a client. I performed the tests on two
@@ -35,10 +53,8 @@ bin/phase6_release.bin \
 -m <local port number> \
 -i <file to send> \
 -o <destination file for transfer back> \
--w <data error percent> \
--x <ack error percent> \
--y <data packet loss percent> \
--z <ack packet loss percent>
+-e <error percent> \
+-l <packet loss percent> \
 ```
 
 **Node Sending**: 
@@ -50,11 +66,12 @@ bin/phase6_release.bin \
 -d <server port number> \
 -i <file to send> \
 -o <destination file for transfer back> \
--w <data error percent> \
--x <ack error percent> \
--y <data packet loss percent> \
--z <ack packet loss percent>
+-e <error percent> \
+-l <packet loss percent> \
 ```
+
+Optionally, you can write lost packets to file using the `--writeLostPackets`
+option. You can do this on both sides of the transfer.
 
 ## Issues
 

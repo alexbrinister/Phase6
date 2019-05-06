@@ -65,17 +65,17 @@ namespace socksahoy
     /// Maximum length of a file path
     const std::size_t MAX_FILE_PATH_LEN = PATH_MAX;
 
-    //The number of packets that can be in the receiver window
+    /// The number of packets that can be in the receiver window
     const std::size_t MAX_RECV_WINDOW_SIZE = 4096;
 
-    //The starting timeout value in mS
-    const std::float_t STARTING_TIMEOUT_VALUE = 50.0;
+    /// The starting timeout value in mS
+    const float STARTING_TIMEOUT_VALUE = 50.0;
 
-    //The alpha value for the timeout
-    const std::float_t ALPHA = 1.0/8.0;
+    /// The alpha value for the timeout
+    const float ALPHA = 1.0/8.0;
 
-    //The beta value for the timeout
-    const std::float_t BETA = 1.0/4.0;
+    /// The beta value for the timeout
+    const float BETA = 1.0/4.0;
 }
 
 // vim: set expandtab ts=4 sw=4:
