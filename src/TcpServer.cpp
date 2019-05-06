@@ -1454,7 +1454,7 @@ void socksahoy::TcpServer::Listen(const std::string& receiveFileName,
         // Mark the start time of the file transfer
         startTransfer = std::chrono::high_resolution_clock::now();
 
-        uint32_t finSequenceNumber;
+        uint32_t finSequenceNumber = 0;
 
         // Loop until we receive a fin segment from the client
         while (!receivedFin)
