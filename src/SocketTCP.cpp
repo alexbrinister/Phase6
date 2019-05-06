@@ -68,8 +68,8 @@ socksahoy::SocketTCP::SocketTCP(unsigned int port,
 
     // Create the SocketTCP file descriptor (or kernel object in Windows)
     baseSock_ = socket(addr_->ai_family,
-                       addr_->ai_socktype,
-                       addr_->ai_protocol);
+                        addr_->ai_socktype,
+                        addr_->ai_protocol);
 
     if (baseSock_ == -1)
     {
@@ -168,7 +168,7 @@ void socksahoy::SocketTCP::Send(Segment& segment,
         // segment won't be lost
         if (sendSegmentLoss < random_number)
         {
-            printf("Sending to address: %s", destAddr.c_str());
+            printf("Sending to address: %s ", destAddr.c_str());
             printf("With port: %u\n", destPort);
 
             // Send the segment to the specified address
@@ -187,7 +187,7 @@ void socksahoy::SocketTCP::Send(Segment& segment,
     // No loss, sendSegmentLoss <= 0
     else
     {
-        printf("Sending to address: %s", destAddr.c_str());
+        printf("Sending to address: %s ", destAddr.c_str());
         printf("With port: %u\n", destPort);
 
         // Send the segment to the specified address
@@ -270,7 +270,7 @@ socksahoy::SocketTCP::GetRemoteAddress()
 
     // Convert binary address to human-readable format
     inet_ntop(remoteAddr_.ss_family, rcvd_addr,
-              &remoteaddrStr[0], INET_ADDRSTRLEN);
+            &remoteaddrStr[0], INET_ADDRSTRLEN);
 
     return remoteaddrStr;
 }
@@ -286,7 +286,7 @@ socksahoy::SocketTCP::GetRemotePort()
 
 void
 socksahoy::SocketTCP::GetAddressInfo(unsigned int port,
-                                     const std::string& addrStr)
+                                    const std::string& addrStr)
 {
     std::string port_str(std::to_string(port));
 

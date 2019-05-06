@@ -53,7 +53,8 @@ namespace socksahoy
     * \details Every packet is sent with a size of type size_t. Therefore, the
     * maximum amount of data is the maximum packet length minus the size.
     */
-    const std::size_t MAX_SEGMENT_DATA_LEN = MAX_FULL_SEGMENT_LEN - SEGMENT_HEADER_LEN;
+    const std::size_t MAX_SEGMENT_DATA_LEN =
+        MAX_FULL_SEGMENT_LEN - SEGMENT_HEADER_LEN;
 
     /**
     * \brief Maximum size of an ack packet.

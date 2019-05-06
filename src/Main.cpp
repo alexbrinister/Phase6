@@ -9,6 +9,7 @@
 
 /* Standard C++ Library headers */
 #include <iostream>
+#include <iomanip>
 #include <exception>
 #include <algorithm>
 #include <string>
@@ -25,21 +26,39 @@
 #include "TcpServer.hpp"
 
 /// Usage print out
-// TODO : Use C++ string formatting functionality on this to make it nicer.
 void Usage(char** argv)
 {
     std::cout << "USAGE:\t\t" << argv[0] << std::endl << std::endl;
 
-    std::cout << "\t\t--client      |   --server" << std::endl;
-    std::cout << "\t\t--myport      |   -m <port number>" << std::endl;
-    std::cout << "\t\t--dstport     |   -d <port number>" << std::endl;
-    std::cout << "\t\t(--serverAddr |   -s <hostname/IP>)" << std::endl;
-    std::cout << "\t\t--infile      |   -i <file path>" << std::endl;
-    std::cout << "\t\t--outfile     |   -o <file path>" << std::endl;
-    std::cout << "\t\t--derror      |   -w <percent (without %)>" << std::endl;
-    std::cout << "\t\t--aerror      |   -x <percent (without %)>" << std::endl;
-    std::cout << "\t\t--dloss       |   -w <percent (without %)>" << std::endl;
-    std::cout << "\t\t--aloss       |   -x <percent (without %)>" << std::endl;
+    std::cout << std::setw(30) << std::left << "--client      |   --server"
+        << std::endl;
+
+    std::cout << std::setw(30) << std::left <<
+        "--myport      |   -m <port number>" << std::endl;
+
+    std::cout << std::setw(30) << std::left <<
+        "--dstport     |   -d <port number>" << std::endl;
+
+    std::cout << std::setw(30) << std::left <<
+        "(--serverAddr |   -s <hostname/IP>)" << std::endl;
+
+    std::cout << std::setw(30) << std::left <<
+        "--infile      |   -i <file path>" << std::endl;
+
+    std::cout << std::setw(30) << std::left <<
+        "--outfile     |   -o <file path>" << std::endl;
+
+    std::cout << std::setw(30) << std::left <<
+        "--error      |   -e <percent (without %)>" << std::endl;
+
+    std::cout << std::setw(30) << std::left <<
+        "--loss       |   -l <percent (without %)>" << std::endl;
+
+    std::cout << std::setw(30) << std::left <<
+        "--writeLostPkts" << std::endl;
+
+    std::cout << std::setw(30) << std::left <<
+        "--help        |   -h" << std::endl;
 }
 
 /// Main program function
@@ -53,11 +72,9 @@ int main(int argc, char** argv)
     unsigned int myPort = 0;
     unsigned int dstPort = 0;
 
-    unsigned int dataErrorPercent = 0;
-    unsigned int ackErrorPercent = 0;
-
-    unsigned int dataLossPercent = 0;
-    unsigned int ackLossPercent = 0;
+    unsigned int errorPercent = 0;
+    unsigned int lossPercent = 0;
+    int writeLostPkts = 0;
 
     // Represents mode; 0 for server, 1 for client.
     // Set by command line
@@ -72,14 +89,13 @@ int main(int argc, char** argv)
         {"serverAddr", required_argument, nullptr, 's'},
         {"myport", required_argument, nullptr, 'm'},
         {"dstport", required_argument, nullptr, 'd'},
-        {"derror", required_argument, nullptr, 'w'},
-        {"aerror", required_argument, nullptr, 'x'},
-        {"dloss", required_argument, nullptr, 'y'},
-        {"aloss", required_argument, nullptr, 'z'},
+        {"error", required_argument, nullptr, 'e'},
+        {"loss", required_argument, nullptr, 'l'},
         {"client", no_argument, &modeFlag, 1},
         {"server", no_argument, &modeFlag, 0},
         {"infile", required_argument, nullptr, 'i'},
         {"outfile", required_argument, nullptr, 'o'},
+        {"writeLostPkts", no_argument, &writeLostPkts, 1},
         {0, 0, 0, 0}
     };
 
@@ -92,7 +108,7 @@ int main(int argc, char** argv)
 
             inputOpt = getopt_long(argc,
                     argv,
-                    "h:s:m:d:w:x:y:z:i:o:",
+                    "h:s:m:d:e:l:i:o:",
                     longOpts,
                     nullptr);
 
@@ -179,64 +195,35 @@ int main(int argc, char** argv)
                     break;
 
                     // Data bit error percent
-                case 'w':
+                case 'e':
                     {
                         std::string optString = std::string(optarg);
                         if(optString.empty())
                         {
                             std::cout << "You must specify a value for ";
-                            std::cout << "data bit error percent!" << std::endl;
+                            std::cout << "bit error percent!" << std::endl;
                             exit(1);
                         }
 
-                        dataErrorPercent = std::stoul(optString);
+                        errorPercent = std::stoul(optString);
                         break;
                     }
 
-                    // ACK bit error percent
-                case 'x':
+                    // Packet loss percent
+                case 'l':
                     {
                         std::string optString = std::string(optarg);
                         if(optString.empty())
                         {
                             std::cout << "You must specify a value for ";
-                            std::cout << "ACK bit error percent!" << std::endl;
-                            exit(1);
-                        }
-
-                        ackErrorPercent = std::stoul(optString);
-                        break;
-                    }
-
-                    // Data packet loss percent
-                case 'y':
-                    {
-                        std::string optString = std::string(optarg);
-                        if(optString.empty())
-                        {
-                            std::cout << "You must specify a value for data ";
                             std::cout << "packet loss percent!" << std::endl;
                             exit(1);
                         }
 
-                        dataLossPercent = std::stoul(optString);
+                        lossPercent = std::stoul(optString);
                         break;
                     }
 
-                    // ACK packet loss percent
-                case 'z':
-                    {
-                        std::string optString = std::string(optarg);
-                        if(optString.empty())
-                        {
-                            std::cout << "You must specify a value for ack ";
-                            std::cout << "packet loss percent!" << std::endl;
-                            exit(1);
-                        }
-
-                        ackLossPercent = std::stoul(optString);
-                        break;
-                    }
 
                 case ':':
                     std::cout << "Missing option in argument '";
@@ -306,12 +293,6 @@ int main(int argc, char** argv)
             }
         }
 
-        int ErrorPercent = ackErrorPercent;
-        int LossPercent = ackLossPercent;
-
-        ErrorPercent = dataErrorPercent;
-        LossPercent = dataLossPercent;
-
         // Now, we run either the server or client
         if (modeFlag == 0) /* Server mode... */
         {
@@ -319,9 +300,9 @@ int main(int argc, char** argv)
 
             server.Listen(outFile,
                     inFile,
-                    ErrorPercent,
-                    LossPercent,
-                    false);
+                    errorPercent,
+                    lossPercent,
+                    writeLostPkts);
         }
 
         else if (modeFlag == 1) /* Client mode... */
@@ -332,9 +313,9 @@ int main(int argc, char** argv)
                     serverAddr,
                     outFile,
                     inFile,
-                    ErrorPercent,
-                    LossPercent,
-                    false);
+                    errorPercent,
+                    lossPercent,
+                    writeLostPkts);
         }
     }
     catch (std::exception& e)
